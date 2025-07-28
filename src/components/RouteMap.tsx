@@ -26,10 +26,12 @@ const RouteMap: React.FC = () => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const isRouteModeRef = useRef(false);
+  const isDraggingRef = useRef(false);
   const [waypoints, setWaypoints] = useState<Waypoint[]>([]);
   const [routeGeometry, setRouteGeometry] = useState<any>(null);
   const [routeStats, setRouteStats] = useState<RouteStats>({ distance: 0, duration: 0, waypointCount: 0 });
   const [isRouteMode, setIsRouteMode] = useState(false);
+  const [selectedWaypoint, setSelectedWaypoint] = useState<string | null>(null);
   const [mapboxToken, setMapboxToken] = useState<string | null>(null);
   const [isLoadingToken, setIsLoadingToken] = useState(true);
 
@@ -96,6 +98,11 @@ const RouteMap: React.FC = () => {
 
     // Add map click handler for adding waypoints
     const clickHandler = (e: mapboxgl.MapMouseEvent) => {
+      // Don't add waypoints if we're dragging
+      if (isDraggingRef.current) {
+        return;
+      }
+      
       console.log('Map clicked:', { 
         isRouteMode: isRouteModeRef.current, 
         coordinates: [e.lngLat.lng, e.lngLat.lat],
@@ -129,14 +136,24 @@ const RouteMap: React.FC = () => {
         }
       });
 
-      // Add waypoint layer
+      // Add waypoint layer - make it interactive
       map.current!.addLayer({
         id: 'waypoints',
         type: 'circle',
         source: 'waypoints',
         paint: {
-          'circle-radius': 8,
-          'circle-color': 'hsl(45, 93%, 58%)',
+          'circle-radius': [
+            'case',
+            ['==', ['get', 'id'], selectedWaypoint || ''],
+            12, // Larger when selected
+            8   // Normal size
+          ],
+          'circle-color': [
+            'case',
+            ['==', ['get', 'id'], selectedWaypoint || ''],
+            'hsl(25, 95%, 53%)', // Orange when selected
+            'hsl(45, 93%, 58%)'  // Yellow normally
+          ],
           'circle-stroke-width': 3,
           'circle-stroke-color': '#ffffff'
         }
@@ -172,12 +189,70 @@ const RouteMap: React.FC = () => {
           'line-opacity': 0.8
         }
       });
+
+      // Add waypoint click and drag handlers
+      map.current.on('click', 'waypoints', (e) => {
+        if (e.features && e.features[0]) {
+          const waypointId = e.features[0].properties?.id;
+          if (waypointId) {
+            setSelectedWaypoint(selectedWaypoint === waypointId ? null : waypointId);
+            console.log('Waypoint selected:', waypointId);
+          }
+        }
+        e.preventDefault();
+      });
+
+      // Make waypoints draggable
+      map.current.on('mousedown', 'waypoints', (e) => {
+        if (e.features && e.features[0]) {
+          const waypointId = e.features[0].properties?.id;
+          setSelectedWaypoint(waypointId);
+          
+          // Prevent the default map drag behavior
+          e.preventDefault();
+          
+          map.current!.getCanvas().style.cursor = 'grab';
+          isDraggingRef.current = true;
+
+          const onMouseMove = (e: mapboxgl.MapMouseEvent) => {
+            if (!isDraggingRef.current) return;
+            
+            map.current!.getCanvas().style.cursor = 'grabbing';
+            
+            // Update waypoint position
+            setWaypoints(prev => prev.map(wp => 
+              wp.id === waypointId 
+                ? { ...wp, coordinates: [e.lngLat.lng, e.lngLat.lat] as [number, number] }
+                : wp
+            ));
+          };
+
+          const onMouseUp = () => {
+            isDraggingRef.current = false;
+            map.current!.getCanvas().style.cursor = '';
+            map.current!.off('mousemove', onMouseMove);
+            map.current!.off('mouseup', onMouseUp);
+          };
+
+          map.current!.on('mousemove', onMouseMove);
+          map.current!.on('mouseup', onMouseUp);
+        }
+      });
+
+      // Change cursor on waypoint hover
+      map.current.on('mouseenter', 'waypoints', () => {
+        map.current!.getCanvas().style.cursor = 'pointer';
+      });
+
+      map.current.on('mouseleave', 'waypoints', () => {
+        map.current!.getCanvas().style.cursor = '';
+      });
     });
 
     return () => {
       map.current?.remove();
     };
-  }, [mapboxToken]);
+  }, [mapboxToken, selectedWaypoint]);
 
   const handleMapClick = useCallback((e: mapboxgl.MapMouseEvent) => {
     console.log('handleMapClick called:', { 
@@ -190,6 +265,9 @@ const RouteMap: React.FC = () => {
       console.log('Not in route mode, ignoring click');
       return;
     }
+
+    // Clear any selected waypoint when adding a new one
+    setSelectedWaypoint(null);
 
     const coordinates: [number, number] = [e.lngLat.lng, e.lngLat.lat];
     const newWaypoint: Waypoint = {
@@ -299,6 +377,7 @@ const RouteMap: React.FC = () => {
 
   const clearAllWaypoints = () => {
     setWaypoints([]);
+    setSelectedWaypoint(null);
     clearRoute();
   };
 
@@ -440,14 +519,24 @@ const RouteMap: React.FC = () => {
               {waypoints.map((waypoint, index) => (
                 <div
                   key={waypoint.id}
-                  className="flex items-center justify-between p-2 bg-secondary/50 rounded-md"
+                  className={`flex items-center justify-between p-2 rounded-md transition-colors ${
+                    selectedWaypoint === waypoint.id 
+                      ? 'bg-primary/20 border border-primary/30' 
+                      : 'bg-secondary/50 hover:bg-secondary/70'
+                  }`}
+                  onClick={() => setSelectedWaypoint(selectedWaypoint === waypoint.id ? null : waypoint.id)}
                 >
-                  <span className="text-sm font-medium">
+                  <span className="text-sm font-medium cursor-pointer">
                     {index + 1}. {waypoint.name}
+                    {selectedWaypoint === waypoint.id && <span className="ml-2 text-xs text-primary">(selected)</span>}
                   </span>
                   <Button
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
                       setWaypoints(prev => prev.filter(w => w.id !== waypoint.id));
+                      if (selectedWaypoint === waypoint.id) {
+                        setSelectedWaypoint(null);
+                      }
                     }}
                     variant="ghost"
                     size="sm"
