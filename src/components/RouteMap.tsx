@@ -422,7 +422,7 @@ const RouteMap: React.FC = () => {
     
     try {
       const response = await fetch(
-        `https://api.mapbox.com/directions/v5/mapbox/cycling/${coordinates}?steps=true&geometries=geojson&overview=full&annotations=maxspeed,duration,distance&access_token=${mapboxToken}`
+        `https://api.mapbox.com/directions/v5/mapbox/cycling/${coordinates}?steps=true&geometries=geojson&overview=full&annotations=maxspeed,duration,distance&exclude=ferry&cycling_speed=4.17&cycling_grade_penalty=1.5&cycling_gate_penalty=0.1&cycling_alley_bias=-0.5&cycling_path_bias=1.0&cycling_ferry_bias=-1.0&avoid=motorway,trunk&access_token=${mapboxToken}`
       );
       
       const data = await response.json();
