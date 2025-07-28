@@ -23,6 +23,7 @@ interface RouteStats {
 const RouteMap: React.FC = () => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
+  const isRouteModeRef = useRef(false);
   const [waypoints, setWaypoints] = useState<Waypoint[]>([]);
   const [routeGeometry, setRouteGeometry] = useState<any>(null);
   const [routeStats, setRouteStats] = useState<RouteStats>({ distance: 0, duration: 0, waypointCount: 0 });
@@ -57,7 +58,7 @@ const RouteMap: React.FC = () => {
     // Add map click handler for adding waypoints
     const clickHandler = (e: mapboxgl.MapMouseEvent) => {
       console.log('Map clicked:', { 
-        isRouteMode, 
+        isRouteMode: isRouteModeRef.current, 
         coordinates: [e.lngLat.lng, e.lngLat.lat],
         currentWaypointCount: waypoints.length 
       });
@@ -141,12 +142,12 @@ const RouteMap: React.FC = () => {
 
   const handleMapClick = useCallback((e: mapboxgl.MapMouseEvent) => {
     console.log('handleMapClick called:', { 
-      isRouteMode, 
+      isRouteMode: isRouteModeRef.current, 
       waypointCount: waypoints.length,
       coordinates: [e.lngLat.lng, e.lngLat.lat]
     });
     
-    if (!isRouteMode) {
+    if (!isRouteModeRef.current) {
       console.log('Not in route mode, ignoring click');
       return;
     }
@@ -164,7 +165,7 @@ const RouteMap: React.FC = () => {
       console.log('Updated waypoints:', updated);
       return updated;
     });
-  }, [isRouteMode, waypoints.length]);
+  }, [waypoints.length]);
 
   // Update waypoints on map
   useEffect(() => {
@@ -316,8 +317,10 @@ const RouteMap: React.FC = () => {
             <Button
               onClick={() => {
                 console.log('Route mode button clicked, current state:', isRouteMode);
-                setIsRouteMode(!isRouteMode);
-                console.log('Route mode will be:', !isRouteMode);
+                const newRouteMode = !isRouteMode;
+                setIsRouteMode(newRouteMode);
+                isRouteModeRef.current = newRouteMode;
+                console.log('Route mode set to:', newRouteMode);
               }}
               variant={isRouteMode ? "default" : "outline"}
               className="w-full"
