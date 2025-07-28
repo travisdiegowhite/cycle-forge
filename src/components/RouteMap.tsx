@@ -3,7 +3,8 @@ import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
-import { MapPin, Route, Trash2, Download } from 'lucide-react';
+import { Input } from './ui/input';
+import { MapPin, Route, Trash2, Download, Search, Navigation } from 'lucide-react';
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -35,6 +36,9 @@ const RouteMap: React.FC = () => {
   const [mapboxToken, setMapboxToken] = useState<string | null>(null);
   const [isLoadingToken, setIsLoadingToken] = useState(true);
   const [useMetric, setUseMetric] = useState(true);
+  const [currentLocation, setCurrentLocation] = useState<[number, number] | null>(null);
+  const [locationSearch, setLocationSearch] = useState('');
+  const [isLoadingLocation, setIsLoadingLocation] = useState(false);
 
   // Get Mapbox token from edge function
   useEffect(() => {
@@ -79,18 +83,47 @@ const RouteMap: React.FC = () => {
     getMapboxToken();
   }, [session, toast]);
 
+  // Get user's current location
+  useEffect(() => {
+    const getCurrentLocation = () => {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const coords: [number, number] = [
+              position.coords.longitude,
+              position.coords.latitude
+            ];
+            setCurrentLocation(coords);
+            console.log('Current location:', coords);
+          },
+          (error) => {
+            console.warn('Error getting location:', error);
+            // Fallback to San Francisco
+            setCurrentLocation([-122.4194, 37.7749]);
+          }
+        );
+      } else {
+        console.warn('Geolocation is not supported');
+        // Fallback to San Francisco
+        setCurrentLocation([-122.4194, 37.7749]);
+      }
+    };
+
+    getCurrentLocation();
+  }, [session, toast]);
+
   // Initialize map
   useEffect(() => {
-    if (!mapContainer.current || !mapboxToken) return;
+    if (!mapContainer.current || !mapboxToken || !currentLocation) return;
 
-    console.log('Initializing map with secure token');
+    console.log('Initializing map with secure token and location:', currentLocation);
     mapboxgl.accessToken = mapboxToken;
     
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: 'mapbox://styles/mapbox/streets-v12',
-      center: [-122.4194, 37.7749], // San Francisco
-      zoom: 12,
+      center: currentLocation, // Use current location
+      zoom: 14, // Zoom in more for current location
       pitch: 0,
       bearing: 0
     });
@@ -272,7 +305,65 @@ const RouteMap: React.FC = () => {
     return () => {
       map.current?.remove();
     };
-  }, [mapboxToken]);
+  }, [mapboxToken, currentLocation]);
+
+  // Search for a location using Mapbox Geocoding API
+  const searchLocation = async () => {
+    if (!locationSearch.trim() || !mapboxToken) return;
+    
+    setIsLoadingLocation(true);
+    try {
+      const response = await fetch(
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(locationSearch)}.json?access_token=${mapboxToken}&limit=1`
+      );
+      
+      const data = await response.json();
+      
+      if (data.features && data.features[0]) {
+        const [lng, lat] = data.features[0].center;
+        
+        // Fly to the location
+        if (map.current) {
+          map.current.flyTo({
+            center: [lng, lat],
+            zoom: 14,
+            duration: 2000
+          });
+        }
+        
+        toast({
+          title: "Location Found",
+          description: `Navigated to ${data.features[0].place_name}`,
+        });
+      } else {
+        toast({
+          title: "Location Not Found",
+          description: "Please try a different search term.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error searching location:', error);
+      toast({
+        title: "Search Error",
+        description: "Failed to search for location. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingLocation(false);
+    }
+  };
+
+  // Go to current location
+  const goToCurrentLocation = () => {
+    if (currentLocation && map.current) {
+      map.current.flyTo({
+        center: currentLocation,
+        zoom: 14,
+        duration: 2000
+      });
+    }
+  };
 
   const handleMapClick = useCallback((e: mapboxgl.MapMouseEvent) => {
     console.log('handleMapClick called:', { 
@@ -545,6 +636,36 @@ const RouteMap: React.FC = () => {
               <Route className="h-4 w-4 text-primary" />
               Route Builder
             </h2>
+            
+            {/* Location Search */}
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Search for a location..."
+                  value={locationSearch}
+                  onChange={(e) => setLocationSearch(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && searchLocation()}
+                  className="flex-1"
+                />
+                <Button
+                  onClick={searchLocation}
+                  disabled={isLoadingLocation}
+                  size="sm"
+                  variant="outline"
+                >
+                  <Search className="h-4 w-4" />
+                </Button>
+              </div>
+              <Button
+                onClick={goToCurrentLocation}
+                variant="outline"
+                size="sm"
+                className="w-full"
+              >
+                <Navigation className="h-4 w-4 mr-2" />
+                Go to My Location
+              </Button>
+            </div>
             
             <Button
               onClick={() => {
