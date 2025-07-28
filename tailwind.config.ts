@@ -26,7 +26,8 @@ export default {
 				foreground: 'hsl(var(--foreground))',
 				primary: {
 					DEFAULT: 'hsl(var(--primary))',
-					foreground: 'hsl(var(--primary-foreground))'
+					foreground: 'hsl(var(--primary-foreground))',
+					glow: 'hsl(var(--primary-glow))'
 				},
 				secondary: {
 					DEFAULT: 'hsl(var(--secondary))',
@@ -61,7 +62,31 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
+				},
+				// Cycling-specific colors
+				route: {
+					active: 'hsl(var(--route-active))',
+					planned: 'hsl(var(--route-planned))'
+				},
+				waypoint: 'hsl(var(--waypoint))',
+				elevation: {
+					low: 'hsl(var(--elevation-low))',
+					high: 'hsl(var(--elevation-high))'
 				}
+			},
+			backgroundImage: {
+				'gradient-primary': 'var(--gradient-primary)',
+				'gradient-map': 'var(--gradient-map)',
+				'gradient-accent': 'var(--gradient-accent)'
+			},
+			boxShadow: {
+				'route': 'var(--shadow-route)',
+				'waypoint': 'var(--shadow-waypoint)',
+				'card': 'var(--shadow-card)'
+			},
+			transitionTimingFunction: {
+				'smooth': 'var(--transition-smooth)',
+				'bounce': 'var(--transition-bounce)'
 			},
 			borderRadius: {
 				lg: 'var(--radius)',
