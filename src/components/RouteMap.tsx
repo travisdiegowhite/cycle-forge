@@ -739,22 +739,38 @@ const RouteMap: React.FC = () => {
                     <div className="text-center">
                       <div className="text-xs text-muted-foreground">Elevation Gain</div>
                       <div className="font-medium text-green-600">
-                        +{routeStats.elevationGain || 0}m
+                        +{useMetric 
+                          ? (routeStats.elevationGain || 0) 
+                          : Math.round((routeStats.elevationGain || 0) * 3.28084)
+                        }{useMetric ? 'm' : 'ft'}
                       </div>
                     </div>
                     <div className="text-center">
                       <div className="text-xs text-muted-foreground">Elevation Loss</div>
                       <div className="font-medium text-red-600">
-                        -{routeStats.elevationLoss || 0}m
+                        -{useMetric 
+                          ? (routeStats.elevationLoss || 0) 
+                          : Math.round((routeStats.elevationLoss || 0) * 3.28084)
+                        }{useMetric ? 'm' : 'ft'}
                       </div>
                     </div>
                     <div className="text-center">
                       <div className="text-xs text-muted-foreground">Max Elevation</div>
-                      <div className="font-medium">{routeStats.maxElevation || 0}m</div>
+                      <div className="font-medium">
+                        {useMetric 
+                          ? (routeStats.maxElevation || 0) 
+                          : Math.round((routeStats.maxElevation || 0) * 3.28084)
+                        }{useMetric ? 'm' : 'ft'}
+                      </div>
                     </div>
                     <div className="text-center">
                       <div className="text-xs text-muted-foreground">Min Elevation</div>
-                      <div className="font-medium">{routeStats.minElevation || 0}m</div>
+                      <div className="font-medium">
+                        {useMetric 
+                          ? (routeStats.minElevation || 0) 
+                          : Math.round((routeStats.minElevation || 0) * 3.28084)
+                        }{useMetric ? 'm' : 'ft'}
+                      </div>
                     </div>
                   </div>
 
