@@ -31,8 +31,16 @@ const RouteMap: React.FC = () => {
 
   // Initialize map
   useEffect(() => {
-    if (!mapContainer.current || !mapboxToken || mapboxToken === 'YOUR_MAPBOX_TOKEN') return;
+    if (!mapContainer.current || !mapboxToken || mapboxToken === 'YOUR_MAPBOX_TOKEN') {
+      console.log('Map initialization skipped:', { 
+        hasContainer: !!mapContainer.current, 
+        hasToken: !!mapboxToken, 
+        tokenValue: mapboxToken 
+      });
+      return;
+    }
 
+    console.log('Initializing map with token:', mapboxToken.substring(0, 10) + '...');
     mapboxgl.accessToken = mapboxToken;
     
     map.current = new mapboxgl.Map({
@@ -47,10 +55,22 @@ const RouteMap: React.FC = () => {
     map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
 
     // Add map click handler for adding waypoints
-    map.current.on('click', handleMapClick);
+    const clickHandler = (e: mapboxgl.MapMouseEvent) => {
+      console.log('Map clicked:', { 
+        isRouteMode, 
+        coordinates: [e.lngLat.lng, e.lngLat.lat],
+        currentWaypointCount: waypoints.length 
+      });
+      handleMapClick(e);
+    };
+    
+    map.current.on('click', clickHandler);
 
     // Add sources and layers when map loads
     map.current.on('load', () => {
+      console.log('Map loaded successfully');
+      
+      if (!map.current) return;
       // Add waypoints source
       map.current!.addSource('waypoints', {
         type: 'geojson',
@@ -120,7 +140,16 @@ const RouteMap: React.FC = () => {
   }, [mapboxToken]);
 
   const handleMapClick = useCallback((e: mapboxgl.MapMouseEvent) => {
-    if (!isRouteMode) return;
+    console.log('handleMapClick called:', { 
+      isRouteMode, 
+      waypointCount: waypoints.length,
+      coordinates: [e.lngLat.lng, e.lngLat.lat]
+    });
+    
+    if (!isRouteMode) {
+      console.log('Not in route mode, ignoring click');
+      return;
+    }
 
     const coordinates: [number, number] = [e.lngLat.lng, e.lngLat.lat];
     const newWaypoint: Waypoint = {
@@ -129,12 +158,21 @@ const RouteMap: React.FC = () => {
       name: `Waypoint ${waypoints.length + 1}`
     };
 
-    setWaypoints(prev => [...prev, newWaypoint]);
+    console.log('Adding new waypoint:', newWaypoint);
+    setWaypoints(prev => {
+      const updated = [...prev, newWaypoint];
+      console.log('Updated waypoints:', updated);
+      return updated;
+    });
   }, [isRouteMode, waypoints.length]);
 
   // Update waypoints on map
   useEffect(() => {
-    if (!map.current || !map.current.getSource('waypoints')) return;
+    console.log('Waypoints updated:', waypoints);
+    if (!map.current || !map.current.getSource('waypoints')) {
+      console.log('Map or waypoints source not ready');
+      return;
+    }
 
     const waypointFeatures = waypoints.map((waypoint, index) => ({
       type: 'Feature' as const,
@@ -149,6 +187,7 @@ const RouteMap: React.FC = () => {
       }
     }));
 
+    console.log('Setting waypoint features on map:', waypointFeatures);
     (map.current.getSource('waypoints') as mapboxgl.GeoJSONSource).setData({
       type: 'FeatureCollection',
       features: waypointFeatures
@@ -156,8 +195,10 @@ const RouteMap: React.FC = () => {
 
     // Generate route if we have 2+ waypoints
     if (waypoints.length >= 2) {
+      console.log('Generating route for', waypoints.length, 'waypoints');
       generateRoute();
     } else {
+      console.log('Clearing route - insufficient waypoints');
       clearRoute();
     }
   }, [waypoints]);
@@ -273,7 +314,11 @@ const RouteMap: React.FC = () => {
             </h2>
             
             <Button
-              onClick={() => setIsRouteMode(!isRouteMode)}
+              onClick={() => {
+                console.log('Route mode button clicked, current state:', isRouteMode);
+                setIsRouteMode(!isRouteMode);
+                console.log('Route mode will be:', !isRouteMode);
+              }}
               variant={isRouteMode ? "default" : "outline"}
               className="w-full"
             >
