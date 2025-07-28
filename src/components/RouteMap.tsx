@@ -19,6 +19,15 @@ interface RouteStats {
   distance: number;
   duration: number;
   waypointCount: number;
+  elevationGain?: number;
+  elevationLoss?: number;
+  maxElevation?: number;
+  minElevation?: number;
+}
+
+interface ElevationPoint {
+  distance: number;
+  elevation: number;
 }
 
 const RouteMap: React.FC = () => {
@@ -31,6 +40,7 @@ const RouteMap: React.FC = () => {
   const [waypoints, setWaypoints] = useState<Waypoint[]>([]);
   const [routeGeometry, setRouteGeometry] = useState<any>(null);
   const [routeStats, setRouteStats] = useState<RouteStats>({ distance: 0, duration: 0, waypointCount: 0 });
+  const [elevationProfile, setElevationProfile] = useState<ElevationPoint[]>([]);
   const [isRouteMode, setIsRouteMode] = useState(false);
   const [selectedWaypoint, setSelectedWaypoint] = useState<string | null>(null);
   const [mapboxToken, setMapboxToken] = useState<string | null>(null);
@@ -414,6 +424,9 @@ const RouteMap: React.FC = () => {
         const distance = useMetric 
           ? Math.round(distanceInKm * 10) / 10
           : Math.round(distanceInKm * 0.621371 * 10) / 10; // Convert to miles
+
+        // Get elevation data for the route
+        await getElevationProfile(route.geometry.coordinates);
         
         setRouteStats({
           distance,
@@ -502,6 +515,82 @@ const RouteMap: React.FC = () => {
     }
   }, [waypoints, mapboxToken, useMetric, toast]);
 
+  // Get elevation profile using Open Elevation API
+  const getElevationProfile = async (coordinates: number[][]) => {
+    try {
+      // Sample coordinates along the route (max 100 points to avoid API limits)
+      const maxPoints = 100;
+      const step = Math.max(1, Math.floor(coordinates.length / maxPoints));
+      const sampledCoords = coordinates.filter((_, index) => index % step === 0);
+      
+      const locations = sampledCoords.map(coord => `${coord[1]},${coord[0]}`).join('|');
+      
+      const response = await fetch(`https://api.open-elevation.com/api/v1/lookup?locations=${locations}`);
+      const elevationData = await response.json();
+      
+      if (elevationData.results) {
+        let cumulativeDistance = 0;
+        const profile: ElevationPoint[] = elevationData.results.map((point: any, index: number) => {
+          if (index > 0) {
+            const prevCoord = sampledCoords[index - 1];
+            const currCoord = sampledCoords[index];
+            const dist = calculateDistance(
+              [prevCoord[1], prevCoord[0]], 
+              [currCoord[1], currCoord[0]]
+            );
+            cumulativeDistance += dist;
+          }
+          
+          return {
+            distance: cumulativeDistance,
+            elevation: point.elevation
+          };
+        });
+        
+        setElevationProfile(profile);
+        
+        // Calculate elevation statistics
+        const elevations = profile.map(p => p.elevation);
+        const maxElevation = Math.max(...elevations);
+        const minElevation = Math.min(...elevations);
+        
+        let elevationGain = 0;
+        let elevationLoss = 0;
+        
+        for (let i = 1; i < profile.length; i++) {
+          const diff = profile[i].elevation - profile[i - 1].elevation;
+          if (diff > 0) {
+            elevationGain += diff;
+          } else {
+            elevationLoss += Math.abs(diff);
+          }
+        }
+        
+        setRouteStats(prev => ({
+          ...prev,
+          elevationGain: Math.round(elevationGain),
+          elevationLoss: Math.round(elevationLoss),
+          maxElevation: Math.round(maxElevation),
+          minElevation: Math.round(minElevation)
+        }));
+      }
+    } catch (error) {
+      console.error('Error getting elevation data:', error);
+    }
+  };
+
+  // Calculate distance between two coordinates (Haversine formula)
+  const calculateDistance = (coord1: [number, number], coord2: [number, number]) => {
+    const R = 6371; // Earth's radius in km
+    const dLat = (coord2[0] - coord1[0]) * Math.PI / 180;
+    const dLon = (coord2[1] - coord1[1]) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(coord1[0] * Math.PI / 180) * Math.cos(coord2[0] * Math.PI / 180) *
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  };
+
   // Update waypoints on map
   useEffect(() => {
     console.log('Waypoints updated:', waypoints);
@@ -572,6 +661,7 @@ const RouteMap: React.FC = () => {
     });
     setRouteGeometry(null);
     setRouteStats({ distance: 0, duration: 0, waypointCount: 0 });
+    setElevationProfile([]);
   };
 
   const clearAllWaypoints = () => {
@@ -623,10 +713,109 @@ const RouteMap: React.FC = () => {
     );
   }
 
-  return (
-    <div className="relative h-screen bg-background">
-      {/* Map Container */}
-      <div ref={mapContainer} className="absolute inset-0" />
+    return (
+      <div className="relative h-screen bg-background">
+        {/* Elevation Profile and Stats - Top of Map */}
+        {routeGeometry && elevationProfile.length > 0 && (
+          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-20 w-full max-w-4xl px-4">
+            <Card className="p-4 shadow-card bg-card/95 backdrop-blur-sm">
+              <div className="space-y-4">
+                {/* Route Statistics Row */}
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 text-sm">
+                  <div className="text-center">
+                    <div className="text-xs text-muted-foreground">Distance</div>
+                    <div className="font-medium">{routeStats.distance} {useMetric ? 'km' : 'mi'}</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xs text-muted-foreground">Duration</div>
+                    <div className="font-medium">{routeStats.duration} min</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xs text-muted-foreground">Elevation Gain</div>
+                    <div className="font-medium text-green-600">
+                      +{routeStats.elevationGain || 0}m
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xs text-muted-foreground">Elevation Loss</div>
+                    <div className="font-medium text-red-600">
+                      -{routeStats.elevationLoss || 0}m
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xs text-muted-foreground">Max Elevation</div>
+                    <div className="font-medium">{routeStats.maxElevation || 0}m</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xs text-muted-foreground">Min Elevation</div>
+                    <div className="font-medium">{routeStats.minElevation || 0}m</div>
+                  </div>
+                </div>
+
+                {/* Elevation Profile Chart */}
+                <div className="relative">
+                  <div className="text-xs font-medium text-card-foreground mb-2">Elevation Profile</div>
+                  <div className="h-24 w-full bg-muted/30 rounded-md relative overflow-hidden">
+                    <svg
+                      width="100%"
+                      height="100%"
+                      viewBox="0 0 400 96"
+                      className="absolute inset-0"
+                    >
+                      {/* Grid lines */}
+                      <defs>
+                        <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+                          <path d="M 20 0 L 0 0 0 20" fill="none" stroke="hsl(var(--muted-foreground))" strokeWidth="0.5" opacity="0.3"/>
+                        </pattern>
+                      </defs>
+                      <rect width="100%" height="100%" fill="url(#grid)" />
+                      
+                      {/* Elevation curve */}
+                      {elevationProfile.length > 1 && (
+                        <polyline
+                          fill="none"
+                          stroke="hsl(var(--primary))"
+                          strokeWidth="2"
+                          points={elevationProfile.map((point, index) => {
+                            const x = (index / (elevationProfile.length - 1)) * 400;
+                            const minElev = Math.min(...elevationProfile.map(p => p.elevation));
+                            const maxElev = Math.max(...elevationProfile.map(p => p.elevation));
+                            const elevRange = maxElev - minElev || 1;
+                            const y = 96 - ((point.elevation - minElev) / elevRange) * 80 - 8;
+                            return `${x},${y}`;
+                          }).join(' ')}
+                        />
+                      )}
+                      
+                      {/* Fill area under curve */}
+                      {elevationProfile.length > 1 && (
+                        <polygon
+                          fill="hsl(var(--primary))"
+                          fillOpacity="0.2"
+                          points={[
+                            ...elevationProfile.map((point, index) => {
+                              const x = (index / (elevationProfile.length - 1)) * 400;
+                              const minElev = Math.min(...elevationProfile.map(p => p.elevation));
+                              const maxElev = Math.max(...elevationProfile.map(p => p.elevation));
+                              const elevRange = maxElev - minElev || 1;
+                              const y = 96 - ((point.elevation - minElev) / elevRange) * 80 - 8;
+                              return `${x},${y}`;
+                            }),
+                            '400,96',
+                            '0,96'
+                          ].join(' ')}
+                        />
+                      )}
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          </div>
+        )}
+
+        {/* Map Container */}
+        <div ref={mapContainer} className="absolute inset-0" />
       
       {/* Control Panel */}
       <div className="absolute top-4 left-4 space-y-4 z-10">
