@@ -421,14 +421,27 @@ const RouteMap: React.FC = () => {
     const coordinates = waypoints.map(w => w.coordinates.join(',')).join(';');
     
     try {
+      console.log('Fetching route for coordinates:', coordinates);
       const response = await fetch(
-        `https://api.mapbox.com/directions/v5/mapbox/cycling/${coordinates}?steps=true&geometries=geojson&overview=full&annotations=maxspeed,duration,distance&exclude=ferry&cycling_speed=4.17&cycling_grade_penalty=1.5&cycling_gate_penalty=0.1&cycling_alley_bias=-0.5&cycling_path_bias=1.0&cycling_ferry_bias=-1.0&avoid=motorway,trunk&access_token=${mapboxToken}`
+        `https://api.mapbox.com/directions/v5/mapbox/cycling/${coordinates}?steps=true&geometries=geojson&overview=full&annotations=maxspeed,duration,distance&exclude=ferry&access_token=${mapboxToken}`
       );
       
+      console.log('Route response status:', response.status);
+      
       const data = await response.json();
+      console.log('Route API response:', { 
+        status: response.status, 
+        hasRoutes: !!data.routes, 
+        routeCount: data.routes?.length || 0,
+        firstRoute: data.routes?.[0] ? { hasGeometry: !!data.routes[0].geometry, hasLegs: !!data.routes[0].legs } : null
+      });
       
       if (data.routes && data.routes[0]) {
         const route = data.routes[0];
+        console.log('Processing route geometry:', { 
+          hasGeometry: !!route.geometry, 
+          coordinateCount: route.geometry?.coordinates?.length || 0 
+        });
         setRouteGeometry(route.geometry);
         const distanceInKm = route.distance / 1000;
         const distance = useMetric 
@@ -513,15 +526,24 @@ const RouteMap: React.FC = () => {
           });
         }
 
-        // Update each surface layer on map
-        Object.keys(surfaceSegments).forEach(surfaceType => {
-          if (map.current && map.current.getSource(`route-${surfaceType}`)) {
-            (map.current.getSource(`route-${surfaceType}`) as mapboxgl.GeoJSONSource).setData({
-              type: 'FeatureCollection',
-              features: surfaceSegments[surfaceType as keyof typeof surfaceSegments]
-            });
-          }
-        });
+         // Update each surface layer on map
+         console.log('Surface segments to render:', Object.keys(surfaceSegments).map(type => ({
+           type,
+           featureCount: surfaceSegments[type as keyof typeof surfaceSegments].length
+         })));
+         
+         Object.keys(surfaceSegments).forEach(surfaceType => {
+           if (map.current && map.current.getSource(`route-${surfaceType}`)) {
+             const features = surfaceSegments[surfaceType as keyof typeof surfaceSegments];
+             console.log(`Setting ${features.length} features for surface type: ${surfaceType}`);
+             (map.current.getSource(`route-${surfaceType}`) as mapboxgl.GeoJSONSource).setData({
+               type: 'FeatureCollection',
+               features: features
+             });
+           } else {
+             console.warn(`Route source route-${surfaceType} not found on map`);
+           }
+         });
       }
     } catch (error) {
       console.error('Error generating route:', error);
