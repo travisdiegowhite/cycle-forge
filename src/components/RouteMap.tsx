@@ -715,9 +715,9 @@ const RouteMap: React.FC = () => {
 
     return (
       <div className="relative h-screen bg-background">
-        {/* Elevation Profile and Stats - Top of Map */}
+        {/* Elevation Profile and Stats - Bottom of Map */}
         {routeGeometry && elevationProfile.length > 0 && (
-          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-20 w-full max-w-4xl px-4">
+          <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 w-full max-w-4xl px-4">
             <Card className="p-4 shadow-card bg-card/95 backdrop-blur-sm">
               <div className="space-y-4">
                 {/* Route Statistics Row */}
