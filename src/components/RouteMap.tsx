@@ -252,7 +252,7 @@ const RouteMap: React.FC = () => {
     return () => {
       map.current?.remove();
     };
-  }, [mapboxToken, selectedWaypoint]);
+  }, [mapboxToken]);
 
   const handleMapClick = useCallback((e: mapboxgl.MapMouseEvent) => {
     console.log('handleMapClick called:', { 
@@ -320,6 +320,25 @@ const RouteMap: React.FC = () => {
       clearRoute();
     }
   }, [waypoints]);
+
+  // Update waypoint styling when selection changes
+  useEffect(() => {
+    if (!map.current || !map.current.getLayer('waypoints')) return;
+
+    map.current.setPaintProperty('waypoints', 'circle-radius', [
+      'case',
+      ['==', ['get', 'id'], selectedWaypoint || ''],
+      12, // Larger when selected
+      8   // Normal size
+    ]);
+
+    map.current.setPaintProperty('waypoints', 'circle-color', [
+      'case',
+      ['==', ['get', 'id'], selectedWaypoint || ''],
+      'hsl(25, 95%, 53%)', // Orange when selected
+      'hsl(45, 93%, 58%)'  // Yellow normally
+    ]);
+  }, [selectedWaypoint]);
 
   const generateRoute = async () => {
     if (waypoints.length < 2 || !mapboxToken) return;
