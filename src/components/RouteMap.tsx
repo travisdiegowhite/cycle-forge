@@ -34,6 +34,7 @@ const RouteMap: React.FC = () => {
   const [selectedWaypoint, setSelectedWaypoint] = useState<string | null>(null);
   const [mapboxToken, setMapboxToken] = useState<string | null>(null);
   const [isLoadingToken, setIsLoadingToken] = useState(true);
+  const [useMetric, setUseMetric] = useState(true);
 
   // Get Mapbox token from edge function
   useEffect(() => {
@@ -284,6 +285,54 @@ const RouteMap: React.FC = () => {
     });
   }, [waypoints.length]);
 
+  const generateRoute = useCallback(async () => {
+    if (waypoints.length < 2 || !mapboxToken) return;
+
+    const coordinates = waypoints.map(w => w.coordinates.join(',')).join(';');
+    
+    try {
+      const response = await fetch(
+        `https://api.mapbox.com/directions/v5/mapbox/cycling/${coordinates}?steps=true&geometries=geojson&access_token=${mapboxToken}`
+      );
+      
+      const data = await response.json();
+      
+      if (data.routes && data.routes[0]) {
+        const route = data.routes[0];
+        setRouteGeometry(route.geometry);
+        const distanceInKm = route.distance / 1000;
+        const distance = useMetric 
+          ? Math.round(distanceInKm * 10) / 10
+          : Math.round(distanceInKm * 0.621371 * 10) / 10; // Convert to miles
+        
+        setRouteStats({
+          distance,
+          duration: Math.round(route.duration / 60), // minutes
+          waypointCount: waypoints.length
+        });
+
+        // Update route on map
+        if (map.current && map.current.getSource('route')) {
+          (map.current.getSource('route') as mapboxgl.GeoJSONSource).setData({
+            type: 'FeatureCollection',
+            features: [{
+              type: 'Feature',
+              geometry: route.geometry,
+              properties: {}
+            }]
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error generating route:', error);
+      toast({
+        title: "Route Error",
+        description: "Failed to generate route. Please try again.",
+        variant: "destructive",
+      });
+    }
+  }, [waypoints, mapboxToken, useMetric, toast]);
+
   // Update waypoints on map
   useEffect(() => {
     console.log('Waypoints updated:', waypoints);
@@ -319,7 +368,7 @@ const RouteMap: React.FC = () => {
       console.log('Clearing route - insufficient waypoints');
       clearRoute();
     }
-  }, [waypoints]);
+  }, [waypoints, generateRoute]);
 
   // Update waypoint styling when selection changes
   useEffect(() => {
@@ -340,48 +389,6 @@ const RouteMap: React.FC = () => {
     ]);
   }, [selectedWaypoint]);
 
-  const generateRoute = async () => {
-    if (waypoints.length < 2 || !mapboxToken) return;
-
-    const coordinates = waypoints.map(w => w.coordinates.join(',')).join(';');
-    
-    try {
-      const response = await fetch(
-        `https://api.mapbox.com/directions/v5/mapbox/cycling/${coordinates}?steps=true&geometries=geojson&access_token=${mapboxToken}`
-      );
-      
-      const data = await response.json();
-      
-      if (data.routes && data.routes[0]) {
-        const route = data.routes[0];
-        setRouteGeometry(route.geometry);
-        setRouteStats({
-          distance: Math.round(route.distance / 1000 * 10) / 10, // km
-          duration: Math.round(route.duration / 60), // minutes
-          waypointCount: waypoints.length
-        });
-
-        // Update route on map
-        if (map.current && map.current.getSource('route')) {
-          (map.current.getSource('route') as mapboxgl.GeoJSONSource).setData({
-            type: 'FeatureCollection',
-            features: [{
-              type: 'Feature',
-              geometry: route.geometry,
-              properties: {}
-            }]
-          });
-        }
-      }
-    } catch (error) {
-      console.error('Error generating route:', error);
-      toast({
-        title: "Route Error",
-        description: "Failed to generate route. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
 
   const clearRoute = () => {
     if (map.current && map.current.getSource('route')) {
@@ -509,11 +516,21 @@ const RouteMap: React.FC = () => {
         {routeStats.waypointCount > 0 && (
           <Card className="p-4 shadow-card bg-card/95 backdrop-blur-sm">
             <div className="space-y-2">
-              <h3 className="font-medium text-card-foreground">Route Stats</h3>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="font-medium text-card-foreground">Route Stats</h3>
+                <Button
+                  onClick={() => setUseMetric(!useMetric)}
+                  variant="outline"
+                  size="sm"
+                  className="h-6 px-2 text-xs"
+                >
+                  {useMetric ? 'km' : 'mi'}
+                </Button>
+              </div>
               <div className="space-y-1 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Distance:</span>
-                  <span className="font-medium">{routeStats.distance} km</span>
+                  <span className="font-medium">{routeStats.distance} {useMetric ? 'km' : 'mi'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Est. Time:</span>
@@ -545,9 +562,9 @@ const RouteMap: React.FC = () => {
                   }`}
                   onClick={() => setSelectedWaypoint(selectedWaypoint === waypoint.id ? null : waypoint.id)}
                 >
-                  <span className="text-sm font-medium cursor-pointer">
-                    {index + 1}. {waypoint.name}
-                    {selectedWaypoint === waypoint.id && <span className="ml-2 text-xs text-primary">(selected)</span>}
+                   <span className="text-sm font-medium cursor-pointer">
+                     {index + 1}. Waypoint {index + 1}
+                     {selectedWaypoint === waypoint.id && <span className="ml-2 text-xs text-primary">(selected)</span>}
                   </span>
                   <Button
                     onClick={(e) => {
