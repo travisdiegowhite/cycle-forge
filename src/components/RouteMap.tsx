@@ -881,8 +881,8 @@ const RouteMap: React.FC = () => {
         <div className="flex-1 relative">
           <div ref={mapContainer} className="absolute inset-0" />
         
-        {/* Control Panel */}
-        <div className="absolute top-4 left-4 space-y-4 z-10">
+          {/* Control Panel */}
+          <div className="absolute top-4 left-4 space-y-4 z-10">
         <Card className="p-4 shadow-card bg-card/95 backdrop-blur-sm">
           <div className="space-y-3">
             <h2 className="font-semibold text-card-foreground flex items-center gap-2">
@@ -1025,50 +1025,50 @@ const RouteMap: React.FC = () => {
             </div>
           </Card>
         )}
-      </div>
-
+        </div>
+        
         {/* Waypoint List */}
         {waypoints.length > 0 && (
           <div className="absolute top-4 right-4 w-64 z-10">
             <Card className="p-4 shadow-card bg-card/95 backdrop-blur-sm">
               <h3 className="font-medium text-card-foreground mb-3">Waypoints</h3>
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-              {waypoints.map((waypoint, index) => (
-                <div
-                  key={waypoint.id}
-                  className={`flex items-center justify-between p-2 rounded-md transition-colors ${
-                    selectedWaypoint === waypoint.id 
-                      ? 'bg-primary/20 border border-primary/30' 
-                      : 'bg-secondary/50 hover:bg-secondary/70'
-                  }`}
-                  onClick={() => setSelectedWaypoint(selectedWaypoint === waypoint.id ? null : waypoint.id)}
-                >
-                   <span className="text-sm font-medium cursor-pointer">
-                     {index + 1}. Waypoint {index + 1}
-                     {selectedWaypoint === waypoint.id && <span className="ml-2 text-xs text-primary">(selected)</span>}
-                  </span>
-                  <Button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setWaypoints(prev => prev.filter(w => w.id !== waypoint.id));
-                      if (selectedWaypoint === waypoint.id) {
-                        setSelectedWaypoint(null);
-                      }
-                    }}
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 w-6 p-0 hover:bg-destructive/20"
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {waypoints.map((waypoint, index) => (
+                  <div
+                    key={waypoint.id}
+                    className={`flex items-center justify-between p-2 rounded-md transition-colors ${
+                      selectedWaypoint === waypoint.id 
+                        ? 'bg-primary/20 border border-primary/30' 
+                        : 'bg-secondary/50 hover:bg-secondary/70'
+                    }`}
+                    onClick={() => setSelectedWaypoint(selectedWaypoint === waypoint.id ? null : waypoint.id)}
                   >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </Card>
+                     <span className="text-sm font-medium cursor-pointer">
+                        {index + 1}. Waypoint {index + 1}
+                        {selectedWaypoint === waypoint.id && <span className="ml-2 text-xs text-primary">(selected)</span>}
+                     </span>
+                     <Button
+                       onClick={(e) => {
+                         e.stopPropagation();
+                         setWaypoints(prev => prev.filter(w => w.id !== waypoint.id));
+                         if (selectedWaypoint === waypoint.id) {
+                           setSelectedWaypoint(null);
+                         }
+                       }}
+                       variant="ghost"
+                       size="sm"
+                       className="h-6 w-6 p-0 hover:bg-destructive/20"
+                     >
+                       <Trash2 className="h-3 w-3" />
+                     </Button>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </div>
+        )}
         </div>
-      )}
       </div>
-    </div>
   );
 };
 
