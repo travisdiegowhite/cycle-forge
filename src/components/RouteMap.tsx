@@ -423,7 +423,7 @@ const RouteMap: React.FC = () => {
     try {
       console.log('Fetching route for coordinates:', coordinates);
       const response = await fetch(
-        `https://api.mapbox.com/directions/v5/mapbox/cycling/${coordinates}?steps=true&geometries=geojson&overview=full&annotations=maxspeed,duration,distance&exclude=ferry&access_token=${mapboxToken}`
+        `https://api.mapbox.com/directions/v5/mapbox/cycling/${coordinates}?steps=true&geometries=geojson&overview=full&annotations=maxspeed,duration,distance&exclude=ferry,motorway,trunk,primary&access_token=${mapboxToken}`
       );
       
       console.log('Route response status:', response.status);
