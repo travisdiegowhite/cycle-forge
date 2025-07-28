@@ -175,20 +175,39 @@ const RouteMap: React.FC = () => {
         }
       });
 
-      // Add route layer
-      map.current!.addLayer({
-        id: 'route',
-        type: 'line',
-        source: 'route',
-        layout: {
-          'line-join': 'round',
-          'line-cap': 'round'
-        },
-        paint: {
-          'line-color': 'hsl(142, 76%, 36%)',
-          'line-width': 4,
-          'line-opacity': 0.8
-        }
+      // Add route layers for different surface types
+      const surfaceColors = {
+        'paved': 'hsl(142, 76%, 36%)',      // Green for paved roads
+        'unpaved': 'hsl(30, 100%, 50%)',   // Orange for unpaved/gravel
+        'path': 'hsl(45, 93%, 58%)',       // Yellow for paths/trails
+        'ferry': 'hsl(200, 100%, 50%)',    // Blue for ferry routes
+        'default': 'hsl(142, 76%, 36%)'    // Default green
+      };
+
+      // Add sources for each surface type
+      Object.keys(surfaceColors).forEach(surfaceType => {
+        map.current!.addSource(`route-${surfaceType}`, {
+          type: 'geojson',
+          data: {
+            type: 'FeatureCollection',
+            features: []
+          }
+        });
+
+        map.current!.addLayer({
+          id: `route-${surfaceType}`,
+          type: 'line',
+          source: `route-${surfaceType}`,
+          layout: {
+            'line-join': 'round',
+            'line-cap': 'round'
+          },
+          paint: {
+            'line-color': surfaceColors[surfaceType as keyof typeof surfaceColors],
+            'line-width': 4,
+            'line-opacity': 0.8
+          }
+        });
       });
 
       // Add waypoint click and drag handlers
@@ -292,7 +311,7 @@ const RouteMap: React.FC = () => {
     
     try {
       const response = await fetch(
-        `https://api.mapbox.com/directions/v5/mapbox/cycling/${coordinates}?steps=true&geometries=geojson&access_token=${mapboxToken}`
+        `https://api.mapbox.com/directions/v5/mapbox/cycling/${coordinates}?steps=true&geometries=geojson&annotations=maxspeed,duration,distance,congestion&access_token=${mapboxToken}`
       );
       
       const data = await response.json();
@@ -311,17 +330,76 @@ const RouteMap: React.FC = () => {
           waypointCount: waypoints.length
         });
 
-        // Update route on map
-        if (map.current && map.current.getSource('route')) {
-          (map.current.getSource('route') as mapboxgl.GeoJSONSource).setData({
-            type: 'FeatureCollection',
-            features: [{
-              type: 'Feature',
-              geometry: route.geometry,
-              properties: {}
-            }]
+        // Process route segments by surface type
+        const surfaceSegments = {
+          'paved': [] as any[],
+          'unpaved': [] as any[],
+          'path': [] as any[],
+          'ferry': [] as any[],
+          'default': [] as any[]
+        };
+
+        if (route.legs && route.legs[0] && route.legs[0].steps) {
+          route.legs.forEach((leg: any) => {
+            leg.steps.forEach((step: any) => {
+              let surfaceType = 'default';
+              
+              // Determine surface type based on road class and maneuver type
+              if (step.maneuver?.modifier === 'ferry') {
+                surfaceType = 'ferry';
+              } else if (step.intersections && step.intersections[0]?.classes) {
+                const classes = step.intersections[0].classes;
+                if (classes.includes('path') || classes.includes('trail') || classes.includes('cycleway')) {
+                  surfaceType = 'path';
+                } else if (classes.includes('track') || classes.includes('service')) {
+                  surfaceType = 'unpaved';
+                } else if (classes.includes('trunk') || classes.includes('primary') || classes.includes('secondary')) {
+                  surfaceType = 'paved';
+                }
+              } else {
+                // Fallback: use road name/type hints
+                const name = step.name?.toLowerCase() || '';
+                const ref = step.ref?.toLowerCase() || '';
+                if (name.includes('trail') || name.includes('path') || name.includes('cycleway')) {
+                  surfaceType = 'path';
+                } else if (name.includes('track') || name.includes('service') || name.includes('unpaved')) {
+                  surfaceType = 'unpaved';
+                } else if (ref || name.includes('highway') || name.includes('street') || name.includes('road')) {
+                  surfaceType = 'paved';
+                }
+              }
+
+              if (step.geometry && step.geometry.coordinates) {
+                surfaceSegments[surfaceType as keyof typeof surfaceSegments].push({
+                  type: 'Feature',
+                  geometry: step.geometry,
+                  properties: { 
+                    surface: surfaceType,
+                    name: step.name || 'Unnamed',
+                    distance: step.distance 
+                  }
+                });
+              }
+            });
+          });
+        } else {
+          // Fallback: treat entire route as default surface
+          surfaceSegments.default.push({
+            type: 'Feature',
+            geometry: route.geometry,
+            properties: { surface: 'default' }
           });
         }
+
+        // Update each surface layer on map
+        Object.keys(surfaceSegments).forEach(surfaceType => {
+          if (map.current && map.current.getSource(`route-${surfaceType}`)) {
+            (map.current.getSource(`route-${surfaceType}`) as mapboxgl.GeoJSONSource).setData({
+              type: 'FeatureCollection',
+              features: surfaceSegments[surfaceType as keyof typeof surfaceSegments]
+            });
+          }
+        });
       }
     } catch (error) {
       console.error('Error generating route:', error);
@@ -391,12 +469,16 @@ const RouteMap: React.FC = () => {
 
 
   const clearRoute = () => {
-    if (map.current && map.current.getSource('route')) {
-      (map.current.getSource('route') as mapboxgl.GeoJSONSource).setData({
-        type: 'FeatureCollection',
-        features: []
-      });
-    }
+    // Clear all surface-specific route layers
+    const surfaceTypes = ['paved', 'unpaved', 'path', 'ferry', 'default'];
+    surfaceTypes.forEach(surfaceType => {
+      if (map.current && map.current.getSource(`route-${surfaceType}`)) {
+        (map.current.getSource(`route-${surfaceType}`) as mapboxgl.GeoJSONSource).setData({
+          type: 'FeatureCollection',
+          features: []
+        });
+      }
+    });
     setRouteGeometry(null);
     setRouteStats({ distance: 0, duration: 0, waypointCount: 0 });
   };
@@ -540,6 +622,31 @@ const RouteMap: React.FC = () => {
                   <span className="text-muted-foreground">Waypoints:</span>
                   <span className="font-medium">{routeStats.waypointCount}</span>
                 </div>
+
+                {/* Surface Legend */}
+                {routeGeometry && (
+                  <div className="mt-3 pt-3 border-t border-border/50">
+                    <h4 className="text-xs font-medium text-card-foreground mb-2">Surface Types</h4>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-xs">
+                        <div className="w-3 h-1 bg-green-600 rounded"></div>
+                        <span className="text-muted-foreground">Paved Roads</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs">
+                        <div className="w-3 h-1 bg-orange-500 rounded"></div>
+                        <span className="text-muted-foreground">Unpaved/Gravel</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs">
+                        <div className="w-3 h-1 bg-yellow-500 rounded"></div>
+                        <span className="text-muted-foreground">Paths/Trails</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs">
+                        <div className="w-3 h-1 bg-blue-500 rounded"></div>
+                        <span className="text-muted-foreground">Ferry Routes</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </Card>
