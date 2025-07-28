@@ -438,6 +438,9 @@ const RouteMap: React.FC = () => {
 
         // Get elevation data for the route
         await getElevationProfile(route.geometry.coordinates);
+        
+        // Automatically snap waypoints to the route
+        snapWaypointsToRoute(route.geometry);
 
         // Process route segments by surface type
         const surfaceSegments = {
@@ -519,6 +522,36 @@ const RouteMap: React.FC = () => {
       });
     }
   }, [waypoints, mapboxToken, useMetric, toast]);
+
+  // Function to snap waypoints to the route
+  const snapWaypointsToRoute = useCallback((routeGeometry: any) => {
+    if (!routeGeometry || !routeGeometry.coordinates) return;
+    
+    const routeCoords = routeGeometry.coordinates;
+    
+    setWaypoints(prev => prev.map(waypoint => {
+      let closestPoint = waypoint.coordinates;
+      let minDistance = Infinity;
+      
+      // Find the closest point on the route to this waypoint
+      for (const coord of routeCoords) {
+        const distance = calculateDistance(
+          [waypoint.coordinates[1], waypoint.coordinates[0]], 
+          [coord[1], coord[0]]
+        );
+        
+        if (distance < minDistance) {
+          minDistance = distance;
+          closestPoint = [coord[0], coord[1]] as [number, number];
+        }
+      }
+      
+      return {
+        ...waypoint,
+        coordinates: closestPoint
+      };
+    }));
+  }, []);
 
   // Get elevation profile using Open Elevation API
   const getElevationProfile = async (coordinates: number[][]) => {
