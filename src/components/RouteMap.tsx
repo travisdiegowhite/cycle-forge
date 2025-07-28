@@ -760,124 +760,7 @@ const RouteMap: React.FC = () => {
 
     return (
       <div className="w-full h-screen bg-background flex flex-col overflow-hidden">
-        {/* Elevation Profile and Stats - Above Map */}
-        {routeGeometry && elevationProfile.length > 0 && (
-          <div className="w-full border-b border-border bg-background">
-            <div className="max-w-7xl mx-auto p-4">
-              <Card className="shadow-card bg-card">
-                <div className="p-4 space-y-4">
-                  {/* Route Statistics Row */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 text-sm">
-                    <div className="text-center">
-                      <div className="text-xs text-muted-foreground">Distance</div>
-                      <div className="font-medium">{routeStats.distance} {useMetric ? 'km' : 'mi'}</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-xs text-muted-foreground">Duration</div>
-                      <div className="font-medium">{routeStats.duration} min</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-xs text-muted-foreground">Elevation Gain</div>
-                      <div className="font-medium text-green-600">
-                        +{useMetric 
-                          ? (routeStats.elevationGain || 0) 
-                          : Math.round((routeStats.elevationGain || 0) * 3.28084)
-                        }{useMetric ? 'm' : 'ft'}
-                      </div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-xs text-muted-foreground">Elevation Loss</div>
-                      <div className="font-medium text-red-600">
-                        -{useMetric 
-                          ? (routeStats.elevationLoss || 0) 
-                          : Math.round((routeStats.elevationLoss || 0) * 3.28084)
-                        }{useMetric ? 'm' : 'ft'}
-                      </div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-xs text-muted-foreground">Max Elevation</div>
-                      <div className="font-medium">
-                        {useMetric 
-                          ? (routeStats.maxElevation || 0) 
-                          : Math.round((routeStats.maxElevation || 0) * 3.28084)
-                        }{useMetric ? 'm' : 'ft'}
-                      </div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-xs text-muted-foreground">Min Elevation</div>
-                      <div className="font-medium">
-                        {useMetric 
-                          ? (routeStats.minElevation || 0) 
-                          : Math.round((routeStats.minElevation || 0) * 3.28084)
-                        }{useMetric ? 'm' : 'ft'}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Elevation Profile Chart */}
-                  <div className="relative">
-                    <div className="text-xs font-medium text-card-foreground mb-2">Elevation Profile</div>
-                    <div className="h-24 w-full bg-muted/30 rounded-md relative overflow-hidden">
-                      <svg
-                        width="100%"
-                        height="100%"
-                        viewBox="0 0 400 96"
-                        className="absolute inset-0"
-                      >
-                        {/* Grid lines */}
-                        <defs>
-                          <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
-                            <path d="M 20 0 L 0 0 0 20" fill="none" stroke="hsl(var(--muted-foreground))" strokeWidth="0.5" opacity="0.3"/>
-                          </pattern>
-                        </defs>
-                        <rect width="100%" height="100%" fill="url(#grid)" />
-                        
-                        {/* Elevation curve */}
-                        {elevationProfile.length > 1 && (
-                          <polyline
-                            fill="none"
-                            stroke="hsl(var(--primary))"
-                            strokeWidth="2"
-                            points={elevationProfile.map((point, index) => {
-                              const x = (index / (elevationProfile.length - 1)) * 400;
-                              const minElev = Math.min(...elevationProfile.map(p => p.elevation));
-                              const maxElev = Math.max(...elevationProfile.map(p => p.elevation));
-                              const elevRange = maxElev - minElev || 1;
-                              const y = 96 - ((point.elevation - minElev) / elevRange) * 80 - 8;
-                              return `${x},${y}`;
-                            }).join(' ')}
-                          />
-                        )}
-                        
-                        {/* Fill area under curve */}
-                        {elevationProfile.length > 1 && (
-                          <polygon
-                            fill="hsl(var(--primary))"
-                            fillOpacity="0.2"
-                            points={[
-                              ...elevationProfile.map((point, index) => {
-                                const x = (index / (elevationProfile.length - 1)) * 400;
-                                const minElev = Math.min(...elevationProfile.map(p => p.elevation));
-                                const maxElev = Math.max(...elevationProfile.map(p => p.elevation));
-                                const elevRange = maxElev - minElev || 1;
-                                const y = 96 - ((point.elevation - minElev) / elevRange) * 80 - 8;
-                                return `${x},${y}`;
-                              }),
-                              '400,96',
-                              '0,96'
-                            ].join(' ')}
-                          />
-                        )}
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-              </Card>
-            </div>
-          </div>
-        )}
-
-        {/* Map Container - Takes remaining space */}
+        {/* Map Container - Takes most of the space */}
         <div className="flex-1 relative">
           <div ref={mapContainer} className="absolute inset-0" />
         
@@ -1068,6 +951,123 @@ const RouteMap: React.FC = () => {
           </div>
         )}
         </div>
+        
+        {/* Elevation Profile and Stats - Below Map */}
+        {routeGeometry && elevationProfile.length > 0 && (
+          <div className="w-full border-t border-border bg-background">
+            <div className="max-w-7xl mx-auto p-4">
+              <Card className="shadow-card bg-card">
+                <div className="p-4 space-y-4">
+                  {/* Route Statistics Row */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 text-sm">
+                    <div className="text-center">
+                      <div className="text-xs text-muted-foreground">Distance</div>
+                      <div className="font-medium">{routeStats.distance} {useMetric ? 'km' : 'mi'}</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xs text-muted-foreground">Duration</div>
+                      <div className="font-medium">{routeStats.duration} min</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xs text-muted-foreground">Elevation Gain</div>
+                      <div className="font-medium text-green-600">
+                        +{useMetric 
+                          ? (routeStats.elevationGain || 0) 
+                          : Math.round((routeStats.elevationGain || 0) * 3.28084)
+                        }{useMetric ? 'm' : 'ft'}
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xs text-muted-foreground">Elevation Loss</div>
+                      <div className="font-medium text-red-600">
+                        -{useMetric 
+                          ? (routeStats.elevationLoss || 0) 
+                          : Math.round((routeStats.elevationLoss || 0) * 3.28084)
+                        }{useMetric ? 'm' : 'ft'}
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xs text-muted-foreground">Max Elevation</div>
+                      <div className="font-medium">
+                        {useMetric 
+                          ? (routeStats.maxElevation || 0) 
+                          : Math.round((routeStats.maxElevation || 0) * 3.28084)
+                        }{useMetric ? 'm' : 'ft'}
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xs text-muted-foreground">Min Elevation</div>
+                      <div className="font-medium">
+                        {useMetric 
+                          ? (routeStats.minElevation || 0) 
+                          : Math.round((routeStats.minElevation || 0) * 3.28084)
+                        }{useMetric ? 'm' : 'ft'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Elevation Profile Chart */}
+                  <div className="relative">
+                    <div className="text-xs font-medium text-card-foreground mb-2">Elevation Profile</div>
+                    <div className="h-24 w-full bg-muted/30 rounded-md relative overflow-hidden">
+                      <svg
+                        width="100%"
+                        height="100%"
+                        viewBox="0 0 400 96"
+                        className="absolute inset-0"
+                      >
+                        {/* Grid lines */}
+                        <defs>
+                          <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+                            <path d="M 20 0 L 0 0 0 20" fill="none" stroke="hsl(var(--muted-foreground))" strokeWidth="0.5" opacity="0.3"/>
+                          </pattern>
+                        </defs>
+                        <rect width="100%" height="100%" fill="url(#grid)" />
+                        
+                        {/* Elevation curve */}
+                        {elevationProfile.length > 1 && (
+                          <polyline
+                            fill="none"
+                            stroke="hsl(var(--primary))"
+                            strokeWidth="2"
+                            points={elevationProfile.map((point, index) => {
+                              const x = (index / (elevationProfile.length - 1)) * 400;
+                              const minElev = Math.min(...elevationProfile.map(p => p.elevation));
+                              const maxElev = Math.max(...elevationProfile.map(p => p.elevation));
+                              const elevRange = maxElev - minElev || 1;
+                              const y = 96 - ((point.elevation - minElev) / elevRange) * 80 - 8;
+                              return `${x},${y}`;
+                            }).join(' ')}
+                          />
+                        )}
+                        
+                        {/* Fill area under curve */}
+                        {elevationProfile.length > 1 && (
+                          <polygon
+                            fill="hsl(var(--primary))"
+                            fillOpacity="0.2"
+                            points={[
+                              ...elevationProfile.map((point, index) => {
+                                const x = (index / (elevationProfile.length - 1)) * 400;
+                                const minElev = Math.min(...elevationProfile.map(p => p.elevation));
+                                const maxElev = Math.max(...elevationProfile.map(p => p.elevation));
+                                const elevRange = maxElev - minElev || 1;
+                                const y = 96 - ((point.elevation - minElev) / elevRange) * 80 - 8;
+                                return `${x},${y}`;
+                              }),
+                              '400,96',
+                              '0,96'
+                            ].join(' ')}
+                          />
+                        )}
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            </div>
+          </div>
+        )}
       </div>
   );
 };
