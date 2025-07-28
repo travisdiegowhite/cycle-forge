@@ -425,14 +425,19 @@ const RouteMap: React.FC = () => {
           ? Math.round(distanceInKm * 10) / 10
           : Math.round(distanceInKm * 0.621371 * 10) / 10; // Convert to miles
 
-        // Get elevation data for the route
-        await getElevationProfile(route.geometry.coordinates);
-        
+        // Set initial route stats
         setRouteStats({
           distance,
           duration: Math.round(route.duration / 60), // minutes
-          waypointCount: waypoints.length
+          waypointCount: waypoints.length,
+          elevationGain: 0,
+          elevationLoss: 0,
+          maxElevation: 0,
+          minElevation: 0
         });
+
+        // Get elevation data for the route
+        await getElevationProfile(route.geometry.coordinates);
 
         // Process route segments by surface type
         const surfaceSegments = {
