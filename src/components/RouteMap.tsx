@@ -4,9 +4,9 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { MapPin, Route, Trash2, Download } from 'lucide-react';
-
-// You'll need to provide your Mapbox token
-const MAPBOX_TOKEN = 'YOUR_MAPBOX_TOKEN'; // Replace with your actual token
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
 
 interface Waypoint {
   id: string;
@@ -21,6 +21,8 @@ interface RouteStats {
 }
 
 const RouteMap: React.FC = () => {
+  const { session } = useAuth();
+  const { toast } = useToast();
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const isRouteModeRef = useRef(false);
@@ -28,20 +30,57 @@ const RouteMap: React.FC = () => {
   const [routeGeometry, setRouteGeometry] = useState<any>(null);
   const [routeStats, setRouteStats] = useState<RouteStats>({ distance: 0, duration: 0, waypointCount: 0 });
   const [isRouteMode, setIsRouteMode] = useState(false);
-  const [mapboxToken, setMapboxToken] = useState(MAPBOX_TOKEN);
+  const [mapboxToken, setMapboxToken] = useState<string | null>(null);
+  const [isLoadingToken, setIsLoadingToken] = useState(true);
+
+  // Get Mapbox token from edge function
+  useEffect(() => {
+    const getMapboxToken = async () => {
+      if (!session?.access_token) {
+        setIsLoadingToken(false);
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase.functions.invoke('get-mapbox-token', {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        });
+
+        if (error) {
+          console.error('Error getting Mapbox token:', error);
+          toast({
+            title: "Map Error",
+            description: "Failed to load map configuration. Please try again.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        if (data?.token) {
+          setMapboxToken(data.token);
+        }
+      } catch (error) {
+        console.error('Error calling get-mapbox-token function:', error);
+        toast({
+          title: "Map Error", 
+          description: "Failed to load map configuration. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoadingToken(false);
+      }
+    };
+
+    getMapboxToken();
+  }, [session, toast]);
 
   // Initialize map
   useEffect(() => {
-    if (!mapContainer.current || !mapboxToken || mapboxToken === 'YOUR_MAPBOX_TOKEN') {
-      console.log('Map initialization skipped:', { 
-        hasContainer: !!mapContainer.current, 
-        hasToken: !!mapboxToken, 
-        tokenValue: mapboxToken 
-      });
-      return;
-    }
+    if (!mapContainer.current || !mapboxToken) return;
 
-    console.log('Initializing map with token:', mapboxToken.substring(0, 10) + '...');
+    console.log('Initializing map with secure token');
     mapboxgl.accessToken = mapboxToken;
     
     map.current = new mapboxgl.Map({
@@ -205,7 +244,7 @@ const RouteMap: React.FC = () => {
   }, [waypoints]);
 
   const generateRoute = async () => {
-    if (waypoints.length < 2 || !mapboxToken || mapboxToken === 'YOUR_MAPBOX_TOKEN') return;
+    if (waypoints.length < 2 || !mapboxToken) return;
 
     const coordinates = waypoints.map(w => w.coordinates.join(',')).join(';');
     
@@ -239,6 +278,11 @@ const RouteMap: React.FC = () => {
       }
     } catch (error) {
       console.error('Error generating route:', error);
+      toast({
+        title: "Route Error",
+        description: "Failed to generate route. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -277,25 +321,26 @@ const RouteMap: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
-  if (!mapboxToken || mapboxToken === 'YOUR_MAPBOX_TOKEN') {
+  // Show loading state while getting token
+  if (isLoadingToken) {
     return (
-      <div className="min-h-screen bg-gradient-map flex items-center justify-center p-4">
-        <Card className="p-6 max-w-md w-full shadow-card">
-          <div className="text-center space-y-4">
-            <MapPin className="h-12 w-12 text-primary mx-auto" />
-            <h2 className="text-xl font-semibold">Mapbox Token Required</h2>
-            <p className="text-muted-foreground text-sm">
-              To use the route builder, please enter your Mapbox public token.
-              Get yours at <a href="https://mapbox.com/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">mapbox.com</a>
-            </p>
-            <input
-              type="text"
-              placeholder="Enter your Mapbox token..."
-              className="w-full px-3 py-2 border border-input rounded-md bg-background"
-              onChange={(e) => setMapboxToken(e.target.value)}
-            />
-          </div>
-        </Card>
+      <div className="relative w-full h-[600px] bg-muted rounded-lg flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-pulse text-lg text-muted-foreground mb-2">Loading map...</div>
+          <div className="text-sm text-muted-foreground">Initializing secure connection</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state if no token
+  if (!mapboxToken) {
+    return (
+      <div className="relative w-full h-[600px] bg-muted rounded-lg flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-lg text-foreground mb-2">Map Unavailable</div>
+          <div className="text-sm text-muted-foreground">Please contact support if this persists</div>
+        </div>
       </div>
     );
   }
@@ -320,7 +365,7 @@ const RouteMap: React.FC = () => {
                 const newRouteMode = !isRouteMode;
                 setIsRouteMode(newRouteMode);
                 isRouteModeRef.current = newRouteMode;
-                console.log('Route mode set to:', newRouteMode);
+                console.log('Route mode will be:', newRouteMode);
               }}
               variant={isRouteMode ? "default" : "outline"}
               className="w-full"
