@@ -49,6 +49,7 @@ const RouteMap: React.FC = () => {
   const [currentLocation, setCurrentLocation] = useState<[number, number] | null>(null);
   const [locationSearch, setLocationSearch] = useState('');
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
+  const [isSnapping, setIsSnapping] = useState(false);
 
   // Get Mapbox token from edge function
   useEffect(() => {
@@ -525,8 +526,9 @@ const RouteMap: React.FC = () => {
 
   // Function to snap waypoints to the route
   const snapWaypointsToRoute = useCallback((routeGeometry: any) => {
-    if (!routeGeometry || !routeGeometry.coordinates) return;
+    if (!routeGeometry || !routeGeometry.coordinates || isSnapping) return;
     
+    setIsSnapping(true);
     const routeCoords = routeGeometry.coordinates;
     
     setWaypoints(prev => prev.map(waypoint => {
@@ -551,7 +553,10 @@ const RouteMap: React.FC = () => {
         coordinates: closestPoint
       };
     }));
-  }, []);
+    
+    // Reset snapping flag after a short delay
+    setTimeout(() => setIsSnapping(false), 100);
+  }, [isSnapping]);
 
   // Get elevation profile using Open Elevation API
   const getElevationProfile = async (coordinates: number[][]) => {
@@ -656,15 +661,17 @@ const RouteMap: React.FC = () => {
       features: waypointFeatures
     });
 
-    // Generate route if we have 2+ waypoints
-    if (waypoints.length >= 2) {
+    // Generate route if we have 2+ waypoints and we're not currently snapping
+    if (waypoints.length >= 2 && !isSnapping) {
       console.log('Generating route for', waypoints.length, 'waypoints');
       generateRoute();
     } else {
-      console.log('Clearing route - insufficient waypoints');
-      clearRoute();
+      console.log('Clearing route - insufficient waypoints or currently snapping');
+      if (waypoints.length < 2) {
+        clearRoute();
+      }
     }
-  }, [waypoints, generateRoute]);
+  }, [waypoints, generateRoute, isSnapping]);
 
   // Update waypoint styling when selection changes
   useEffect(() => {
