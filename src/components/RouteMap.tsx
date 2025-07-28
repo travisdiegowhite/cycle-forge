@@ -759,7 +759,7 @@ const RouteMap: React.FC = () => {
   }
 
     return (
-      <div className="relative h-screen bg-background flex flex-col">
+      <div className="w-full h-screen bg-background flex flex-col overflow-hidden">
         {/* Elevation Profile and Stats - Above Map */}
         {routeGeometry && elevationProfile.length > 0 && (
           <div className="w-full border-b border-border bg-background">
