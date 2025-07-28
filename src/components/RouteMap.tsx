@@ -311,7 +311,7 @@ const RouteMap: React.FC = () => {
     
     try {
       const response = await fetch(
-        `https://api.mapbox.com/directions/v5/mapbox/cycling/${coordinates}?steps=true&geometries=geojson&annotations=maxspeed,duration,distance,congestion&access_token=${mapboxToken}`
+        `https://api.mapbox.com/directions/v5/mapbox/cycling/${coordinates}?steps=true&geometries=geojson&overview=full&annotations=maxspeed,duration,distance&access_token=${mapboxToken}`
       );
       
       const data = await response.json();
