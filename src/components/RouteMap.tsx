@@ -8,6 +8,15 @@ import { MapPin, Route, Trash2, Download, Search, Navigation } from 'lucide-reac
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { 
+  Sidebar, 
+  SidebarContent, 
+  SidebarGroup, 
+  SidebarGroupContent, 
+  SidebarGroupLabel, 
+  SidebarProvider, 
+  SidebarTrigger 
+} from "./ui/sidebar";
 
 interface Waypoint {
   id: string;
@@ -758,317 +767,342 @@ const RouteMap: React.FC = () => {
     );
   }
 
-    return (
-      <div className="w-full h-screen bg-background flex flex-col overflow-hidden">
-        {/* Map Container - Takes most of the space */}
-        <div className="flex-1 relative">
-          <div ref={mapContainer} className="absolute inset-0" />
-        
-          {/* Control Panel */}
-          <div className="absolute top-4 left-4 space-y-4 z-10">
-        <Card className="p-4 shadow-card bg-card/95 backdrop-blur-sm">
-          <div className="space-y-3">
-            <h2 className="font-semibold text-card-foreground flex items-center gap-2">
-              <Route className="h-4 w-4 text-primary" />
-              Route Builder
-            </h2>
-            
-            {/* Location Search */}
-            <div className="space-y-2">
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Search for a location..."
-                  value={locationSearch}
-                  onChange={(e) => setLocationSearch(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && searchLocation()}
-                  className="flex-1"
-                />
-                <Button
-                  onClick={searchLocation}
-                  disabled={isLoadingLocation}
-                  size="sm"
-                  variant="outline"
-                >
-                  <Search className="h-4 w-4" />
-                </Button>
-              </div>
-              <Button
-                onClick={goToCurrentLocation}
-                variant="outline"
-                size="sm"
-                className="w-full"
-              >
-                <Navigation className="h-4 w-4 mr-2" />
-                Go to My Location
-              </Button>
-            </div>
-            
-            <Button
-              onClick={() => {
-                console.log('Route mode button clicked, current state:', isRouteMode);
-                const newRouteMode = !isRouteMode;
-                setIsRouteMode(newRouteMode);
-                isRouteModeRef.current = newRouteMode;
-                console.log('Route mode will be:', newRouteMode);
-              }}
-              variant={isRouteMode ? "default" : "outline"}
-              className="w-full"
-            >
-              {isRouteMode ? 'Exit Route Mode' : 'Start Building Route'}
-            </Button>
-
-            {isRouteMode && (
-              <p className="text-xs text-muted-foreground">
-                Click on the map to add waypoints
-              </p>
-            )}
-
-            {waypoints.length > 0 && (
-              <div className="space-y-2">
-                <Button
-                  onClick={clearAllWaypoints}
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                >
-                  <Trash2 className="h-3 w-3 mr-1" />
-                  Clear All
-                </Button>
-                
-                {routeGeometry && (
-                  <Button
-                    onClick={exportRoute}
-                    variant="outline"
-                    size="sm"
-                    className="w-full"
-                  >
-                    <Download className="h-3 w-3 mr-1" />
-                    Export Route
-                  </Button>
-                )}
-              </div>
-            )}
-          </div>
-        </Card>
-
-        {/* Route Stats */}
-        {routeStats.waypointCount > 0 && (
-          <Card className="p-4 shadow-card bg-card/95 backdrop-blur-sm">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="font-medium text-card-foreground">Route Stats</h3>
-                <Button
-                  onClick={() => setUseMetric(!useMetric)}
-                  variant="outline"
-                  size="sm"
-                  className="h-6 px-2 text-xs"
-                >
-                  {useMetric ? 'km' : 'mi'}
-                </Button>
-              </div>
-              <div className="space-y-1 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Distance:</span>
-                  <span className="font-medium">{routeStats.distance} {useMetric ? 'km' : 'mi'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Est. Time:</span>
-                  <span className="font-medium">{routeStats.duration} min</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Waypoints:</span>
-                  <span className="font-medium">{routeStats.waypointCount}</span>
-                </div>
-
-                {/* Surface Legend */}
-                {routeGeometry && (
-                  <div className="mt-3 pt-3 border-t border-border/50">
-                    <h4 className="text-xs font-medium text-card-foreground mb-2">Surface Types</h4>
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 text-xs">
-                        <div className="w-3 h-1 bg-green-600 rounded"></div>
-                        <span className="text-muted-foreground">Paved Roads</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs">
-                        <div className="w-3 h-1 bg-orange-500 rounded"></div>
-                        <span className="text-muted-foreground">Unpaved/Gravel</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs">
-                        <div className="w-3 h-1 bg-yellow-500 rounded"></div>
-                        <span className="text-muted-foreground">Paths/Trails</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs">
-                        <div className="w-3 h-1 bg-blue-500 rounded"></div>
-                        <span className="text-muted-foreground">Ferry Routes</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </Card>
-        )}
-        </div>
-        
-        {/* Waypoint List */}
-        {waypoints.length > 0 && (
-          <div className="absolute top-4 right-4 w-64 z-10">
-            <Card className="p-4 shadow-card bg-card/95 backdrop-blur-sm">
-              <h3 className="font-medium text-card-foreground mb-3">Waypoints</h3>
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {waypoints.map((waypoint, index) => (
-                  <div
-                    key={waypoint.id}
-                    className={`flex items-center justify-between p-2 rounded-md transition-colors ${
-                      selectedWaypoint === waypoint.id 
-                        ? 'bg-primary/20 border border-primary/30' 
-                        : 'bg-secondary/50 hover:bg-secondary/70'
-                    }`}
-                    onClick={() => setSelectedWaypoint(selectedWaypoint === waypoint.id ? null : waypoint.id)}
-                  >
-                     <span className="text-sm font-medium cursor-pointer">
-                        {index + 1}. Waypoint {index + 1}
-                        {selectedWaypoint === waypoint.id && <span className="ml-2 text-xs text-primary">(selected)</span>}
-                     </span>
-                     <Button
-                       onClick={(e) => {
-                         e.stopPropagation();
-                         setWaypoints(prev => prev.filter(w => w.id !== waypoint.id));
-                         if (selectedWaypoint === waypoint.id) {
-                           setSelectedWaypoint(null);
-                         }
-                       }}
-                       variant="ghost"
-                       size="sm"
-                       className="h-6 w-6 p-0 hover:bg-destructive/20"
-                     >
-                       <Trash2 className="h-3 w-3" />
-                     </Button>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          </div>
-        )}
-        </div>
-        
-        {/* Elevation Profile and Stats - Below Map */}
+  return (
+    <SidebarProvider>
+      <div className="w-full h-screen bg-background flex">
+        {/* Elevation Profile Sidebar */}
         {routeGeometry && elevationProfile.length > 0 && (
-          <div className="w-full border-t border-border bg-background">
-            <div className="max-w-7xl mx-auto p-4">
-              <Card className="shadow-card bg-card">
-                <div className="p-4 space-y-4">
-                  {/* Route Statistics Row */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 text-sm">
-                    <div className="text-center">
-                      <div className="text-xs text-muted-foreground">Distance</div>
-                      <div className="font-medium">{routeStats.distance} {useMetric ? 'km' : 'mi'}</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-xs text-muted-foreground">Duration</div>
-                      <div className="font-medium">{routeStats.duration} min</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-xs text-muted-foreground">Elevation Gain</div>
-                      <div className="font-medium text-green-600">
-                        +{useMetric 
-                          ? (routeStats.elevationGain || 0) 
-                          : Math.round((routeStats.elevationGain || 0) * 3.28084)
-                        }{useMetric ? 'm' : 'ft'}
+          <Sidebar className="w-80" collapsible="offcanvas">
+            <SidebarTrigger className="m-2 self-end" />
+            <SidebarContent>
+              <SidebarGroup>
+                <SidebarGroupLabel>Route Analysis</SidebarGroupLabel>
+                <SidebarGroupContent>
+                  <div className="p-4 space-y-4">
+                    {/* Route Statistics */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-medium text-card-foreground">Route Statistics</h3>
+                        <Button
+                          onClick={() => setUseMetric(!useMetric)}
+                          variant="outline"
+                          size="sm"
+                          className="h-6 px-2 text-xs"
+                        >
+                          {useMetric ? 'km' : 'mi'}
+                        </Button>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div className="text-center p-2 bg-muted/30 rounded">
+                          <div className="text-xs text-muted-foreground">Distance</div>
+                          <div className="font-medium">{routeStats.distance} {useMetric ? 'km' : 'mi'}</div>
+                        </div>
+                        <div className="text-center p-2 bg-muted/30 rounded">
+                          <div className="text-xs text-muted-foreground">Duration</div>
+                          <div className="font-medium">{routeStats.duration} min</div>
+                        </div>
+                        <div className="text-center p-2 bg-muted/30 rounded">
+                          <div className="text-xs text-muted-foreground">Elevation Gain</div>
+                          <div className="font-medium text-green-600">
+                            +{useMetric 
+                              ? (routeStats.elevationGain || 0) 
+                              : Math.round((routeStats.elevationGain || 0) * 3.28084)
+                            }{useMetric ? 'm' : 'ft'}
+                          </div>
+                        </div>
+                        <div className="text-center p-2 bg-muted/30 rounded">
+                          <div className="text-xs text-muted-foreground">Elevation Loss</div>
+                          <div className="font-medium text-red-600">
+                            -{useMetric 
+                              ? (routeStats.elevationLoss || 0) 
+                              : Math.round((routeStats.elevationLoss || 0) * 3.28084)
+                            }{useMetric ? 'm' : 'ft'}
+                          </div>
+                        </div>
+                        <div className="text-center p-2 bg-muted/30 rounded">
+                          <div className="text-xs text-muted-foreground">Max Elevation</div>
+                          <div className="font-medium">
+                            {useMetric 
+                              ? (routeStats.maxElevation || 0) 
+                              : Math.round((routeStats.maxElevation || 0) * 3.28084)
+                            }{useMetric ? 'm' : 'ft'}
+                          </div>
+                        </div>
+                        <div className="text-center p-2 bg-muted/30 rounded">
+                          <div className="text-xs text-muted-foreground">Min Elevation</div>
+                          <div className="font-medium">
+                            {useMetric 
+                              ? (routeStats.minElevation || 0) 
+                              : Math.round((routeStats.minElevation || 0) * 3.28084)
+                            }{useMetric ? 'm' : 'ft'}
+                          </div>
+                        </div>
                       </div>
                     </div>
-                    <div className="text-center">
-                      <div className="text-xs text-muted-foreground">Elevation Loss</div>
-                      <div className="font-medium text-red-600">
-                        -{useMetric 
-                          ? (routeStats.elevationLoss || 0) 
-                          : Math.round((routeStats.elevationLoss || 0) * 3.28084)
-                        }{useMetric ? 'm' : 'ft'}
-                      </div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-xs text-muted-foreground">Max Elevation</div>
-                      <div className="font-medium">
-                        {useMetric 
-                          ? (routeStats.maxElevation || 0) 
-                          : Math.round((routeStats.maxElevation || 0) * 3.28084)
-                        }{useMetric ? 'm' : 'ft'}
-                      </div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-xs text-muted-foreground">Min Elevation</div>
-                      <div className="font-medium">
-                        {useMetric 
-                          ? (routeStats.minElevation || 0) 
-                          : Math.round((routeStats.minElevation || 0) * 3.28084)
-                        }{useMetric ? 'm' : 'ft'}
-                      </div>
-                    </div>
-                  </div>
 
-                  {/* Elevation Profile Chart */}
-                  <div className="relative">
-                    <div className="text-xs font-medium text-card-foreground mb-2">Elevation Profile</div>
-                    <div className="h-24 w-full bg-muted/30 rounded-md relative overflow-hidden">
-                      <svg
-                        width="100%"
-                        height="100%"
-                        viewBox="0 0 400 96"
-                        className="absolute inset-0"
-                      >
-                        {/* Grid lines */}
-                        <defs>
-                          <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
-                            <path d="M 20 0 L 0 0 0 20" fill="none" stroke="hsl(var(--muted-foreground))" strokeWidth="0.5" opacity="0.3"/>
-                          </pattern>
-                        </defs>
-                        <rect width="100%" height="100%" fill="url(#grid)" />
-                        
-                        {/* Elevation curve */}
-                        {elevationProfile.length > 1 && (
-                          <polyline
-                            fill="none"
-                            stroke="hsl(var(--primary))"
-                            strokeWidth="2"
-                            points={elevationProfile.map((point, index) => {
-                              const x = (index / (elevationProfile.length - 1)) * 400;
-                              const minElev = Math.min(...elevationProfile.map(p => p.elevation));
-                              const maxElev = Math.max(...elevationProfile.map(p => p.elevation));
-                              const elevRange = maxElev - minElev || 1;
-                              const y = 96 - ((point.elevation - minElev) / elevRange) * 80 - 8;
-                              return `${x},${y}`;
-                            }).join(' ')}
-                          />
-                        )}
-                        
-                        {/* Fill area under curve */}
-                        {elevationProfile.length > 1 && (
-                          <polygon
-                            fill="hsl(var(--primary))"
-                            fillOpacity="0.2"
-                            points={[
-                              ...elevationProfile.map((point, index) => {
+                    {/* Elevation Profile Chart */}
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-medium text-card-foreground">Elevation Profile</h4>
+                      <div className="h-32 w-full bg-muted/30 rounded-md relative overflow-hidden">
+                        <svg
+                          width="100%"
+                          height="100%"
+                          viewBox="0 0 400 128"
+                          className="absolute inset-0"
+                        >
+                          {/* Grid lines */}
+                          <defs>
+                            <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+                              <path d="M 20 0 L 0 0 0 20" fill="none" stroke="hsl(var(--muted-foreground))" strokeWidth="0.5" opacity="0.3"/>
+                            </pattern>
+                          </defs>
+                          <rect width="100%" height="100%" fill="url(#grid)" />
+                          
+                          {/* Elevation curve */}
+                          {elevationProfile.length > 1 && (
+                            <polyline
+                              fill="none"
+                              stroke="hsl(var(--primary))"
+                              strokeWidth="2"
+                              points={elevationProfile.map((point, index) => {
                                 const x = (index / (elevationProfile.length - 1)) * 400;
                                 const minElev = Math.min(...elevationProfile.map(p => p.elevation));
                                 const maxElev = Math.max(...elevationProfile.map(p => p.elevation));
                                 const elevRange = maxElev - minElev || 1;
-                                const y = 96 - ((point.elevation - minElev) / elevRange) * 80 - 8;
+                                const y = 128 - ((point.elevation - minElev) / elevRange) * 110 - 9;
                                 return `${x},${y}`;
-                              }),
-                              '400,96',
-                              '0,96'
-                            ].join(' ')}
-                          />
-                        )}
-                      </svg>
+                              }).join(' ')}
+                            />
+                          )}
+                          
+                          {/* Fill area under curve */}
+                          {elevationProfile.length > 1 && (
+                            <polygon
+                              fill="hsl(var(--primary))"
+                              fillOpacity="0.2"
+                              points={[
+                                ...elevationProfile.map((point, index) => {
+                                  const x = (index / (elevationProfile.length - 1)) * 400;
+                                  const minElev = Math.min(...elevationProfile.map(p => p.elevation));
+                                  const maxElev = Math.max(...elevationProfile.map(p => p.elevation));
+                                  const elevRange = maxElev - minElev || 1;
+                                  const y = 128 - ((point.elevation - minElev) / elevRange) * 110 - 9;
+                                  return `${x},${y}`;
+                                }),
+                                '400,128',
+                                '0,128'
+                              ].join(' ')}
+                            />
+                          )}
+                        </svg>
+                      </div>
+                    </div>
+
+                    {/* Surface Legend */}
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-medium text-card-foreground">Surface Types</h4>
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-xs">
+                          <div className="w-3 h-1 bg-green-600 rounded"></div>
+                          <span className="text-muted-foreground">Paved Roads</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs">
+                          <div className="w-3 h-1 bg-orange-500 rounded"></div>
+                          <span className="text-muted-foreground">Unpaved/Gravel</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs">
+                          <div className="w-3 h-1 bg-yellow-500 rounded"></div>
+                          <span className="text-muted-foreground">Paths/Trails</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs">
+                          <div className="w-3 h-1 bg-blue-500 rounded"></div>
+                          <span className="text-muted-foreground">Ferry Routes</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </SidebarGroupContent>
+              </SidebarGroup>
+            </SidebarContent>
+          </Sidebar>
+        )}
+
+        {/* Main Content - Map takes full remaining space */}
+        <main className="flex-1 relative">
+          {/* Global Sidebar Trigger - Always visible */}
+          {routeGeometry && elevationProfile.length > 0 && (
+            <div className="absolute top-4 left-4 z-50">
+              <SidebarTrigger className="bg-card/95 backdrop-blur-sm border shadow-card" />
+            </div>
+          )}
+          
+          <div ref={mapContainer} className="absolute inset-0" />
+        
+          {/* Control Panel */}
+          <div className="absolute top-4 right-4 space-y-4 z-10">
+            <Card className="p-4 shadow-card bg-card/95 backdrop-blur-sm">
+              <div className="space-y-3">
+                <h2 className="font-semibold text-card-foreground flex items-center gap-2">
+                  <Route className="h-4 w-4 text-primary" />
+                  Route Builder
+                </h2>
+                
+                {/* Location Search */}
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Search for a location..."
+                      value={locationSearch}
+                      onChange={(e) => setLocationSearch(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && searchLocation()}
+                      className="flex-1"
+                    />
+                    <Button
+                      onClick={searchLocation}
+                      disabled={isLoadingLocation}
+                      size="sm"
+                      variant="outline"
+                    >
+                      <Search className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <Button
+                    onClick={goToCurrentLocation}
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                  >
+                    <Navigation className="h-4 w-4 mr-2" />
+                    Go to My Location
+                  </Button>
+                </div>
+                
+                <Button
+                  onClick={() => {
+                    console.log('Route mode button clicked, current state:', isRouteMode);
+                    const newRouteMode = !isRouteMode;
+                    setIsRouteMode(newRouteMode);
+                    isRouteModeRef.current = newRouteMode;
+                    console.log('Route mode will be:', newRouteMode);
+                  }}
+                  variant={isRouteMode ? "default" : "outline"}
+                  className="w-full"
+                >
+                  {isRouteMode ? 'Exit Route Mode' : 'Start Building Route'}
+                </Button>
+
+                {isRouteMode && (
+                  <p className="text-xs text-muted-foreground">
+                    Click on the map to add waypoints
+                  </p>
+                )}
+
+                {waypoints.length > 0 && (
+                  <div className="space-y-2">
+                    <Button
+                      onClick={clearAllWaypoints}
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                    >
+                      <Trash2 className="h-3 w-3 mr-1" />
+                      Clear All
+                    </Button>
+                    
+                    {routeGeometry && (
+                      <Button
+                        onClick={exportRoute}
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                      >
+                        <Download className="h-3 w-3 mr-1" />
+                        Export Route
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </Card>
+
+            {/* Route Stats - Compact version when sidebar is not available */}
+            {routeStats.waypointCount > 0 && !(routeGeometry && elevationProfile.length > 0) && (
+              <Card className="p-4 shadow-card bg-card/95 backdrop-blur-sm">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-medium text-card-foreground">Route Stats</h3>
+                    <Button
+                      onClick={() => setUseMetric(!useMetric)}
+                      variant="outline"
+                      size="sm"
+                      className="h-6 px-2 text-xs"
+                    >
+                      {useMetric ? 'km' : 'mi'}
+                    </Button>
+                  </div>
+                  <div className="space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Distance:</span>
+                      <span className="font-medium">{routeStats.distance} {useMetric ? 'km' : 'mi'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Est. Time:</span>
+                      <span className="font-medium">{routeStats.duration} min</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Waypoints:</span>
+                      <span className="font-medium">{routeStats.waypointCount}</span>
                     </div>
                   </div>
                 </div>
               </Card>
-            </div>
+            )}
           </div>
-        )}
+          
+          {/* Waypoint List */}
+          {waypoints.length > 0 && (
+            <div className="absolute bottom-4 right-4 w-64 z-10">
+              <Card className="p-4 shadow-card bg-card/95 backdrop-blur-sm">
+                <h3 className="font-medium text-card-foreground mb-3">Waypoints</h3>
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {waypoints.map((waypoint, index) => (
+                    <div
+                      key={waypoint.id}
+                      className={`flex items-center justify-between p-2 rounded-md transition-colors ${
+                        selectedWaypoint === waypoint.id 
+                          ? 'bg-primary/20 border border-primary/30' 
+                          : 'bg-secondary/50 hover:bg-secondary/70'
+                      }`}
+                      onClick={() => setSelectedWaypoint(selectedWaypoint === waypoint.id ? null : waypoint.id)}
+                    >
+                       <span className="text-sm font-medium cursor-pointer">
+                          {index + 1}. Waypoint {index + 1}
+                          {selectedWaypoint === waypoint.id && <span className="ml-2 text-xs text-primary">(selected)</span>}
+                       </span>
+                       <Button
+                         onClick={(e) => {
+                           e.stopPropagation();
+                           setWaypoints(prev => prev.filter(w => w.id !== waypoint.id));
+                           if (selectedWaypoint === waypoint.id) {
+                             setSelectedWaypoint(null);
+                           }
+                         }}
+                         variant="ghost"
+                         size="sm"
+                         className="h-6 w-6 p-0 hover:bg-destructive/20"
+                       >
+                         <Trash2 className="h-3 w-3" />
+                       </Button>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            </div>
+          )}
+        </main>
       </div>
+    </SidebarProvider>
   );
 };
 
