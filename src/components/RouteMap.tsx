@@ -5,7 +5,7 @@ import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { Input } from './ui/input';
 import { MapPin, Route, Trash2, Download, Search, Navigation, Save, FolderOpen } from 'lucide-react';
-import { PlaceSearch } from './PlaceSearch';
+
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { supabase } from "@/integrations/supabase/client";
@@ -1144,39 +1144,7 @@ const RouteMap: React.FC = () => {
                   Route Builder
                 </h2>
                 
-                {/* Place Search */}
                 <div className="space-y-2">
-                  <PlaceSearch
-                    mapboxToken={mapboxToken}
-                    proximity={map.current ? [
-                      map.current.getCenter().lng,
-                      map.current.getCenter().lat
-                    ] : currentLocation}
-                    country="us"
-                    onPlaceSelect={(place) => {
-                      // Add the place as a waypoint
-                      const waypoint: Waypoint = {
-                        id: Date.now().toString(),
-                        coordinates: place.center,
-                        name: place.place_name.split(',')[0]
-                      };
-                      setWaypoints(prev => [...prev, waypoint]);
-                      
-                      // Pan map to the location
-                      if (map.current) {
-                        map.current.flyTo({
-                          center: place.center,
-                          zoom: 15,
-                          duration: 1500
-                        });
-                      }
-                      
-                      toast({
-                        title: "Waypoint Added",
-                        description: `Added "${waypoint.name}" to your route`,
-                      });
-                    }}
-                  />
                   <Button
                     onClick={goToCurrentLocation}
                     variant="outline"
