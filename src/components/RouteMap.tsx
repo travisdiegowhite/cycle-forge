@@ -1136,7 +1136,7 @@ const RouteMap: React.FC = () => {
         
           {/* Control Panel */}
           <div className="absolute top-4 right-4 space-y-4 z-10">
-            <Card className="p-4 shadow-card bg-card/95 backdrop-blur-sm">
+            <Card className="p-4 shadow-card bg-background/10 backdrop-blur-md border-white/20">
               <div className="space-y-3">
                 <h2 className="font-semibold text-card-foreground flex items-center gap-2">
                   <Route className="h-4 w-4 text-primary" />
@@ -1306,7 +1306,7 @@ const RouteMap: React.FC = () => {
 
             {/* Route Stats - Compact version when sidebar is not available */}
             {routeStats.waypointCount > 0 && !(routeGeometry && elevationProfile.length > 0) && (
-              <Card className="p-4 shadow-card bg-card/95 backdrop-blur-sm">
+              <Card className="p-4 shadow-card bg-background/10 backdrop-blur-md border-white/20">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="font-medium text-card-foreground">Route Stats</h3>
@@ -1341,7 +1341,7 @@ const RouteMap: React.FC = () => {
           {/* Waypoint List */}
           {waypoints.length > 0 && (
             <div className="absolute bottom-4 right-4 w-64 z-10">
-              <Card className="p-4 shadow-card bg-card/95 backdrop-blur-sm">
+              <Card className="p-4 shadow-card bg-background/10 backdrop-blur-md border-white/20">
                 <h3 className="font-medium text-card-foreground mb-3">Waypoints</h3>
                 <div className="space-y-2 max-h-64 overflow-y-auto">
                   {waypoints.map((waypoint, index) => (
