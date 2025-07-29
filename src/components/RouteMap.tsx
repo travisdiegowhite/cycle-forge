@@ -1148,6 +1148,11 @@ const RouteMap: React.FC = () => {
                 <div className="space-y-2">
                   <PlaceSearch
                     mapboxToken={mapboxToken}
+                    proximity={map.current ? [
+                      map.current.getCenter().lng,
+                      map.current.getCenter().lat
+                    ] : currentLocation}
+                    country="us"
                     onPlaceSelect={(place) => {
                       // Add the place as a waypoint
                       const waypoint: Waypoint = {

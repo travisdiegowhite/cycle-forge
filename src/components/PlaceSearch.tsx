@@ -17,9 +17,11 @@ interface SearchResult {
 interface PlaceSearchProps {
   onPlaceSelect: (place: SearchResult) => void;
   mapboxToken: string;
+  proximity?: [number, number]; // [longitude, latitude] for biasing results
+  country?: string; // ISO 3166-1 alpha-2 country code (e.g., 'us', 'ca')
 }
 
-export const PlaceSearch = ({ onPlaceSelect, mapboxToken }: PlaceSearchProps) => {
+export const PlaceSearch = ({ onPlaceSelect, mapboxToken, proximity, country }: PlaceSearchProps) => {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -32,10 +34,27 @@ export const PlaceSearch = ({ onPlaceSelect, mapboxToken }: PlaceSearchProps) =>
 
     setIsLoading(true);
     try {
+      // Build query parameters
+      const params = new URLSearchParams({
+        access_token: mapboxToken,
+        types: 'poi,address,place',
+        limit: '8'
+      });
+      
+      // Add proximity bias if provided (helps localize results)
+      if (proximity) {
+        params.append('proximity', `${proximity[0]},${proximity[1]}`);
+      }
+      
+      // Add country filter if provided
+      if (country) {
+        params.append('country', country);
+      }
+
       const response = await fetch(
         `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
           searchQuery
-        )}.json?access_token=${mapboxToken}&types=poi,address,place&limit=8`
+        )}.json?${params.toString()}`
       );
       
       if (response.ok) {
