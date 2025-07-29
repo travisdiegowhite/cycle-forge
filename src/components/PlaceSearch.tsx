@@ -37,13 +37,20 @@ export const PlaceSearch = ({ onPlaceSelect, mapboxToken, proximity, country }: 
       // Build query parameters
       const params = new URLSearchParams({
         access_token: mapboxToken,
-        types: 'poi,address,place',
+        types: 'poi', // Focus only on points of interest (businesses, landmarks)
         limit: '8'
       });
       
       // Add proximity bias if provided (helps localize results)
       if (proximity) {
         params.append('proximity', `${proximity[0]},${proximity[1]}`);
+        
+        // Add a tight bounding box around the proximity point (roughly 10km radius)
+        const lat = proximity[1];
+        const lng = proximity[0];
+        const offset = 0.09; // ~10km in degrees
+        const bbox = [lng - offset, lat - offset, lng + offset, lat + offset];
+        params.append('bbox', bbox.join(','));
       }
       
       // Add country filter if provided
