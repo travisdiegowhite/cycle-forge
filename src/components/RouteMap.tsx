@@ -749,20 +749,60 @@ const RouteMap: React.FC = () => {
   const exportRoute = () => {
     if (!routeGeometry || waypoints.length === 0) return;
 
-    const gpxData = {
-      waypoints,
-      route: routeGeometry,
-      stats: routeStats,
-      timestamp: new Date().toISOString()
-    };
+    const timestamp = new Date().toISOString();
+    const routeName = `Cycling Route ${new Date().toISOString().split('T')[0]}`;
+    
+    // Generate GPX content
+    let gpxContent = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Route Builder" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata>
+    <name>${routeName}</name>
+    <desc>Cycling route with ${waypoints.length} waypoints, ${routeStats.distance}${useMetric ? 'km' : 'mi'} distance</desc>
+    <time>${timestamp}</time>
+  </metadata>
+`;
 
-    const blob = new Blob([JSON.stringify(gpxData, null, 2)], { type: 'application/json' });
+    // Add waypoints
+    waypoints.forEach((waypoint, index) => {
+      gpxContent += `  <wpt lat="${waypoint.coordinates[1]}" lon="${waypoint.coordinates[0]}">
+    <name>Waypoint ${index + 1}</name>
+    <desc>${waypoint.name || `Waypoint ${index + 1}`}</desc>
+  </wpt>
+`;
+    });
+
+    // Add route track
+    if (routeGeometry && routeGeometry.coordinates) {
+      gpxContent += `  <trk>
+    <name>${routeName}</name>
+    <desc>Generated cycling route</desc>
+    <trkseg>
+`;
+      
+      routeGeometry.coordinates.forEach((coord: [number, number]) => {
+        gpxContent += `      <trkpt lat="${coord[1]}" lon="${coord[0]}"></trkpt>
+`;
+      });
+      
+      gpxContent += `    </trkseg>
+  </trk>
+`;
+    }
+
+    gpxContent += `</gpx>`;
+
+    const blob = new Blob([gpxContent], { type: 'application/gpx+xml' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `cycling-route-${new Date().toISOString().split('T')[0]}.json`;
+    a.download = `cycling-route-${new Date().toISOString().split('T')[0]}.gpx`;
     a.click();
     URL.revokeObjectURL(url);
+
+    toast({
+      title: "Route Exported",
+      description: "GPX file has been downloaded successfully.",
+    });
   };
 
   // Show loading state while getting token
