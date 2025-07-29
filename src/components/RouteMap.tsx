@@ -5,6 +5,7 @@ import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { Input } from './ui/input';
 import { MapPin, Route, Trash2, Download, Search, Navigation, Save, FolderOpen } from 'lucide-react';
+import { PlaceSearch } from './PlaceSearch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { supabase } from "@/integrations/supabase/client";
@@ -1143,25 +1144,34 @@ const RouteMap: React.FC = () => {
                   Route Builder
                 </h2>
                 
-                {/* Location Search */}
+                {/* Place Search */}
                 <div className="space-y-2">
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="Search for a location..."
-                      value={locationSearch}
-                      onChange={(e) => setLocationSearch(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && searchLocation()}
-                      className="flex-1"
-                    />
-                    <Button
-                      onClick={searchLocation}
-                      disabled={isLoadingLocation}
-                      size="sm"
-                      variant="outline"
-                    >
-                      <Search className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  <PlaceSearch
+                    mapboxToken={mapboxToken}
+                    onPlaceSelect={(place) => {
+                      // Add the place as a waypoint
+                      const waypoint: Waypoint = {
+                        id: Date.now().toString(),
+                        coordinates: place.center,
+                        name: place.place_name.split(',')[0]
+                      };
+                      setWaypoints(prev => [...prev, waypoint]);
+                      
+                      // Pan map to the location
+                      if (map.current) {
+                        map.current.flyTo({
+                          center: place.center,
+                          zoom: 15,
+                          duration: 1500
+                        });
+                      }
+                      
+                      toast({
+                        title: "Waypoint Added",
+                        description: `Added "${waypoint.name}" to your route`,
+                      });
+                    }}
+                  />
                   <Button
                     onClick={goToCurrentLocation}
                     variant="outline"
