@@ -47,6 +47,39 @@ export type Database = {
         }
         Relationships: []
       }
+      routes: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          route_geometry: Json | null
+          route_stats: Json | null
+          updated_at: string
+          user_id: string
+          waypoints: Json
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          route_geometry?: Json | null
+          route_stats?: Json | null
+          updated_at?: string
+          user_id: string
+          waypoints?: Json
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          route_geometry?: Json | null
+          route_stats?: Json | null
+          updated_at?: string
+          user_id?: string
+          waypoints?: Json
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

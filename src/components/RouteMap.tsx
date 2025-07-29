@@ -4,7 +4,9 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { Input } from './ui/input';
-import { MapPin, Route, Trash2, Download, Search, Navigation } from 'lucide-react';
+import { MapPin, Route, Trash2, Download, Search, Navigation, Save, FolderOpen } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -59,6 +61,10 @@ const RouteMap: React.FC = () => {
   const [locationSearch, setLocationSearch] = useState('');
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const [isSnapping, setIsSnapping] = useState(false);
+  const [savedRoutes, setSavedRoutes] = useState<any[]>([]);
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [showLoadDialog, setShowLoadDialog] = useState(false);
+  const [routeName, setRouteName] = useState('');
 
   // Get Mapbox token from edge function
   useEffect(() => {
@@ -102,6 +108,31 @@ const RouteMap: React.FC = () => {
 
     getMapboxToken();
   }, [session, toast]);
+
+  // Load saved routes from Supabase
+  useEffect(() => {
+    const loadSavedRoutes = async () => {
+      if (!session?.user) return;
+
+      try {
+        const { data, error } = await supabase
+          .from('routes')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.error('Error loading routes:', error);
+          return;
+        }
+
+        setSavedRoutes(data || []);
+      } catch (error) {
+        console.error('Error loading routes:', error);
+      }
+    };
+
+    loadSavedRoutes();
+  }, [session]);
 
   // Get user's current location
   useEffect(() => {
@@ -746,6 +777,108 @@ const RouteMap: React.FC = () => {
     clearRoute();
   };
 
+  const saveRoute = async () => {
+    if (!routeGeometry || waypoints.length === 0 || !session?.user || !routeName.trim()) {
+      toast({
+        title: "Cannot Save Route",
+        description: "Please ensure you have a valid route and enter a name.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('routes')
+        .insert({
+          user_id: session.user.id,
+          name: routeName,
+          waypoints: waypoints as any,
+          route_geometry: routeGeometry as any,
+          route_stats: routeStats as any
+        });
+
+      if (error) {
+        console.error('Error saving route:', error);
+        toast({
+          title: "Save Failed",
+          description: "Failed to save route. Please try again.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Refresh saved routes list
+      const { data } = await supabase
+        .from('routes')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      setSavedRoutes(data || []);
+      setShowSaveDialog(false);
+      setRouteName('');
+
+      toast({
+        title: "Route Saved",
+        description: `Route "${routeName}" has been saved successfully.`,
+      });
+    } catch (error) {
+      console.error('Error saving route:', error);
+      toast({
+        title: "Save Failed",
+        description: "Failed to save route. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const loadRoute = async (routeId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('routes')
+        .select('*')
+        .eq('id', routeId)
+        .single();
+
+      if (error || !data) {
+        console.error('Error loading route:', error);
+        toast({
+          title: "Load Failed",
+          description: "Failed to load route. Please try again.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Load route data
+      setWaypoints((data.waypoints as unknown as Waypoint[]) || []);
+      setRouteGeometry(data.route_geometry);
+      setRouteStats((data.route_stats as unknown as RouteStats) || { distance: 0, duration: 0, waypointCount: 0 });
+      setShowLoadDialog(false);
+
+      toast({
+        title: "Route Loaded",
+        description: `Route "${data.name}" has been loaded successfully.`,
+      });
+
+      // Center map on route
+      if (data.waypoints && Array.isArray(data.waypoints) && data.waypoints.length > 0 && map.current) {
+        const bounds = new mapboxgl.LngLatBounds();
+        (data.waypoints as unknown as Waypoint[]).forEach((waypoint: Waypoint) => {
+          bounds.extend(waypoint.coordinates);
+        });
+        map.current.fitBounds(bounds, { padding: 50 });
+      }
+    } catch (error) {
+      console.error('Error loading route:', error);
+      toast({
+        title: "Load Failed",
+        description: "Failed to load route. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const exportRoute = () => {
     if (!routeGeometry || waypoints.length === 0) return;
 
@@ -1072,17 +1205,100 @@ const RouteMap: React.FC = () => {
                       Clear All
                     </Button>
                     
-                    {routeGeometry && (
+                  {routeGeometry && (
+                    <div className="flex gap-2">
+                      <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
+                        <DialogTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1"
+                          >
+                            <Save className="h-3 w-3 mr-1" />
+                            Save
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Save Route</DialogTitle>
+                          </DialogHeader>
+                          <div className="space-y-4">
+                            <Input
+                              placeholder="Enter route name..."
+                              value={routeName}
+                              onChange={(e) => setRouteName(e.target.value)}
+                            />
+                            <div className="flex gap-2">
+                              <Button onClick={saveRoute} disabled={!routeName.trim()} className="flex-1">
+                                Save Route
+                              </Button>
+                              <Button variant="outline" onClick={() => setShowSaveDialog(false)}>
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+
+                      <Dialog open={showLoadDialog} onOpenChange={setShowLoadDialog}>
+                        <DialogTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1"
+                          >
+                            <FolderOpen className="h-3 w-3 mr-1" />
+                            Load
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Load Saved Route</DialogTitle>
+                          </DialogHeader>
+                          <div className="space-y-4">
+                            {savedRoutes.length === 0 ? (
+                              <p className="text-muted-foreground">No saved routes found.</p>
+                            ) : (
+                              <div className="space-y-2">
+                                {savedRoutes.map((route) => (
+                                  <div
+                                    key={route.id}
+                                    className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50"
+                                  >
+                                    <div>
+                                      <div className="font-medium">{route.name}</div>
+                                      <div className="text-sm text-muted-foreground">
+                                        {new Date(route.created_at).toLocaleDateString()}
+                                      </div>
+                                    </div>
+                                    <Button
+                                      onClick={() => loadRoute(route.id)}
+                                      size="sm"
+                                    >
+                                      Load
+                                    </Button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            <Button variant="outline" onClick={() => setShowLoadDialog(false)} className="w-full">
+                              Cancel
+                            </Button>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+
                       <Button
                         onClick={exportRoute}
                         variant="outline"
                         size="sm"
-                        className="w-full"
+                        className="flex-1"
                       >
                         <Download className="h-3 w-3 mr-1" />
-                        Export Route
+                        Export
                       </Button>
-                    )}
+                    </div>
+                  )}
                   </div>
                 )}
               </div>
