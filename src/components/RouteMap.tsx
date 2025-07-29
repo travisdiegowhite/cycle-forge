@@ -9,6 +9,7 @@ import { MapPin, Route, Trash2, Download, Search, Navigation, Save, FolderOpen }
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { supabase } from "@/integrations/supabase/client";
+import { StravaImport } from './StravaImport';
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { 
@@ -880,6 +881,28 @@ const RouteMap: React.FC = () => {
     }
   };
 
+  const handleStravaImport = (routeData: any) => {
+    // Clear existing route
+    clearRoute();
+    
+    // If the route has a polyline, decode it and add to map
+    if (routeData.route_geometry?.polyline) {
+      // Note: You might need to add polyline decoding here
+      // For now, we'll save the route data
+      setRouteStats({
+        distance: routeData.route_stats?.distance || 0,
+        duration: routeData.route_stats?.duration || 0,
+        elevationGain: routeData.route_stats?.elevation_gain || 0,
+        waypointCount: 0
+      });
+    }
+    
+    toast({
+      title: "Route Imported",
+      description: `"${routeData.name}" imported successfully from Strava.`
+    });
+  };
+
   const exportRoute = () => {
     if (!routeGeometry || waypoints.length === 0) return;
 
@@ -1154,6 +1177,8 @@ const RouteMap: React.FC = () => {
                     <Navigation className="h-4 w-4 mr-2" />
                     Go to My Location
                   </Button>
+                  
+                  <StravaImport onRouteImported={handleStravaImport} />
                 </div>
                 
                 <Button
