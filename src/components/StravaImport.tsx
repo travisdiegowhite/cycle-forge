@@ -59,8 +59,19 @@ export const StravaImport: React.FC<StravaImportProps> = ({ onRouteImported }) =
         // Listen for message from auth window
         const messageHandler = (event: MessageEvent) => {
           console.log('Received message from auth window:', event.data);
+          console.log('Message origin:', event.origin);
+          console.log('Window origin:', window.location.origin);
           
-          if (event.origin !== window.location.origin) return;
+          // Accept messages from our Supabase edge function domain
+          const validOrigins = [
+            window.location.origin,
+            'https://kmyjfflvxgllibbybwbs.supabase.co'
+          ];
+          
+          if (!validOrigins.includes(event.origin)) {
+            console.log('Invalid origin, ignoring message');
+            return;
+          }
           
           if (event.data.type === 'STRAVA_AUTH_SUCCESS') {
             clearInterval(checkClosed);
