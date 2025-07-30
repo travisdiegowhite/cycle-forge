@@ -76,9 +76,14 @@ serve(async (req) => {
         <body>
           <p>Authentication successful! Closing window...</p>
           <script>
+            console.log('🔥 Popup window script running');
+            console.log('🔥 Window opener exists:', !!window.opener);
+            console.log('🔥 Document referrer:', document.referrer);
+            
             if (window.opener) {
               // Post message to all possible parent origins
               const possibleOrigins = [
+                '${url.origin}',
                 'https://8523dd48-6a5c-4647-b24a-1fd9b88b27fd.lovableproject.com',
                 'https://lovable.dev',
                 'http://localhost:3000',
@@ -92,12 +97,17 @@ serve(async (req) => {
                 athlete: ${JSON.stringify(tokenData.athlete)}
               };
               
+              console.log('🔥 Posting message data:', messageData);
+              console.log('🔥 Routes count:', messageData.routes.length);
+              
               // Try posting to each possible origin
-              possibleOrigins.forEach(origin => {
+              possibleOrigins.forEach((origin, index) => {
                 try {
+                  console.log('🔥 Attempting to post to origin ' + index + ':', origin);
                   window.opener.postMessage(messageData, origin);
+                  console.log('🔥 Successfully posted to origin ' + index + ':', origin);
                 } catch (e) {
-                  console.log('Failed to post to origin:', origin, e);
+                  console.log('🔥 Failed to post to origin ' + index + ':', origin, e);
                 }
               });
               
@@ -105,14 +115,21 @@ serve(async (req) => {
               if (document.referrer) {
                 try {
                   const referrerOrigin = new URL(document.referrer).origin;
+                  console.log('🔥 Attempting to post to referrer origin:', referrerOrigin);
                   window.opener.postMessage(messageData, referrerOrigin);
+                  console.log('🔥 Successfully posted to referrer origin:', referrerOrigin);
                 } catch (e) {
-                  console.log('Failed to post to referrer origin:', e);
+                  console.log('🔥 Failed to post to referrer origin:', e);
                 }
               }
               
-              window.close();
+              // Wait a bit before closing to ensure message is sent
+              setTimeout(() => {
+                console.log('🔥 Closing popup window');
+                window.close();
+              }, 500);
             } else {
+              console.log('🔥 No window.opener available');
               // Fallback for when popup blocker prevents window.opener
               document.body.innerHTML = '<p>Authentication successful! You can close this window.</p>';
             }
