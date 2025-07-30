@@ -27,17 +27,24 @@ serve(async (req) => {
       console.log('Processing OAuth callback with code:', code);
       
       const redirectUri = `${url.origin}/functions/v1/strava-auth`;
+      console.log('Using redirect URI:', redirectUri);
+      console.log('Using client ID:', clientId);
+      console.log('Client secret exists:', !!clientSecret);
+      
+      const tokenPayload = {
+        client_id: clientId,
+        client_secret: clientSecret,
+        code: code,
+        grant_type: 'authorization_code',
+        redirect_uri: redirectUri
+      };
+      
+      console.log('Token request payload:', { ...tokenPayload, client_secret: '[HIDDEN]' });
       
       const tokenResponse = await fetch('https://www.strava.com/oauth/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          client_id: clientId,
-          client_secret: clientSecret,
-          code: code,
-          grant_type: 'authorization_code',
-          redirect_uri: redirectUri
-        })
+        body: JSON.stringify(tokenPayload)
       });
 
       const tokenData = await tokenResponse.json();
