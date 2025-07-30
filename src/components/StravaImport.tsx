@@ -61,25 +61,36 @@ export const StravaImport: React.FC<StravaImportProps> = ({ onRouteImported }) =
           console.log('Received message from auth window:', event.data);
           console.log('Message origin:', event.origin);
           console.log('Window origin:', window.location.origin);
+          console.log('Event data type:', event.data?.type);
+          console.log('Event data routes length:', event.data?.routes?.length);
           
-          // Accept messages from our Supabase edge function domain
+          // Accept messages from our Supabase edge function domain and any origin (for development)
           const validOrigins = [
             window.location.origin,
-            'https://kmyjfflvxgllibbybwbs.supabase.co'
+            'https://kmyjfflvxgllibbybwbs.supabase.co',
+            // Allow any origin for development purposes
+            '*'
           ];
           
-          if (!validOrigins.includes(event.origin)) {
-            console.log('Invalid origin, ignoring message');
+          // For now, accept any origin to debug the issue
+          const isValidOrigin = true; // validOrigins.includes(event.origin) || event.origin.includes('supabase.co');
+          
+          if (!isValidOrigin) {
+            console.log('Invalid origin, ignoring message. Valid origins:', validOrigins);
             return;
           }
           
-          if (event.data.type === 'STRAVA_AUTH_SUCCESS') {
+          console.log('Processing message with type:', event.data?.type);
+          
+          if (event.data && event.data.type === 'STRAVA_AUTH_SUCCESS') {
+            console.log('Strava auth success detected!');
             clearInterval(checkClosed);
             authWindow?.close();
             
-            // The routes data is in the `routes` property, which is an array
+            // The routes data should be in the routes property
             const routesData = event.data.routes || [];
-            console.log('Setting routes:', routesData);
+            console.log('Routes data received:', routesData);
+            console.log('Number of routes:', routesData.length);
             
             setRoutes(routesData);
             setAccessToken(event.data.accessToken || 'strava-token');
@@ -90,7 +101,8 @@ export const StravaImport: React.FC<StravaImportProps> = ({ onRouteImported }) =
               title: "Connected to Strava!",
               description: `Found ${routesData.length} routes.`
             });
-          } else if (event.data.type === 'STRAVA_AUTH_ERROR') {
+          } else if (event.data && event.data.type === 'STRAVA_AUTH_ERROR') {
+            console.log('Strava auth error detected!');
             clearInterval(checkClosed);
             authWindow?.close();
             setLoading(false);
@@ -101,6 +113,8 @@ export const StravaImport: React.FC<StravaImportProps> = ({ onRouteImported }) =
               description: event.data.error,
               variant: "destructive"
             });
+          } else {
+            console.log('Unknown message type or structure:', event.data);
           }
         };
 

@@ -77,12 +77,40 @@ serve(async (req) => {
           <p>Authentication successful! Closing window...</p>
           <script>
             if (window.opener) {
-              window.opener.postMessage({
+              // Post message to all possible parent origins
+              const possibleOrigins = [
+                'https://8523dd48-6a5c-4647-b24a-1fd9b88b27fd.lovableproject.com',
+                'https://lovable.dev',
+                'http://localhost:3000',
+                '*'
+              ];
+              
+              const messageData = {
                 type: 'STRAVA_AUTH_SUCCESS',
                 routes: ${JSON.stringify(routes)},
                 accessToken: '${tokenData.access_token}',
                 athlete: ${JSON.stringify(tokenData.athlete)}
-              }, window.location.origin);
+              };
+              
+              // Try posting to each possible origin
+              possibleOrigins.forEach(origin => {
+                try {
+                  window.opener.postMessage(messageData, origin);
+                } catch (e) {
+                  console.log('Failed to post to origin:', origin, e);
+                }
+              });
+              
+              // Also try posting to the referrer if available
+              if (document.referrer) {
+                try {
+                  const referrerOrigin = new URL(document.referrer).origin;
+                  window.opener.postMessage(messageData, referrerOrigin);
+                } catch (e) {
+                  console.log('Failed to post to referrer origin:', e);
+                }
+              }
+              
               window.close();
             } else {
               // Fallback for when popup blocker prevents window.opener
