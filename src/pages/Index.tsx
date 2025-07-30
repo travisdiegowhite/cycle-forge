@@ -49,6 +49,9 @@ const Index = () => {
             </p>
           </div>
           <div className="flex items-center gap-4">
+            <Button variant="outline" onClick={() => navigate('/strava-routes')}>
+              Strava Routes
+            </Button>
             <span className="text-sm text-muted-foreground">
               Welcome, {user.email}
             </span>
