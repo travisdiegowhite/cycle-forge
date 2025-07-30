@@ -66,12 +66,35 @@ serve(async (req) => {
       const routes = await routesResponse.json();
       console.log('Found routes:', routes.length);
 
-      return new Response(JSON.stringify({
-        success: true,
-        routes: routes,
-        athlete: tokenData.athlete
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      // Return HTML with JavaScript to communicate with parent window
+      const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Strava Auth Success</title>
+        </head>
+        <body>
+          <p>Authentication successful! Closing window...</p>
+          <script>
+            if (window.opener) {
+              window.opener.postMessage({
+                type: 'STRAVA_AUTH_SUCCESS',
+                routes: ${JSON.stringify(routes)},
+                accessToken: '${tokenData.access_token}',
+                athlete: ${JSON.stringify(tokenData.athlete)}
+              }, window.location.origin);
+              window.close();
+            } else {
+              // Fallback for when popup blocker prevents window.opener
+              document.body.innerHTML = '<p>Authentication successful! You can close this window.</p>';
+            }
+          </script>
+        </body>
+        </html>
+      `;
+
+      return new Response(html, {
+        headers: { ...corsHeaders, 'Content-Type': 'text/html' }
       });
     }
 

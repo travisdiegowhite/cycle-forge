@@ -33,6 +33,9 @@ export const StravaImport: React.FC<StravaImportProps> = ({ onRouteImported }) =
   const [accessToken, setAccessToken] = useState<string>('');
   const { toast } = useToast();
 
+  // Debug log to see current state
+  console.log('StravaImport state:', { isOpen, routesCount: routes.length, loading, hasAccessToken: !!accessToken });
+
   const connectToStrava = async () => {
     try {
       setLoading(true);
