@@ -45,12 +45,21 @@ export const StravaImport: React.FC<StravaImportProps> = ({ onRouteImported }) =
       if (error) throw error;
 
       if (data.authUrl) {
+        console.log('🔥 Opening Strava auth window with URL:', data.authUrl);
         // Open Strava auth in new window
-        const authWindow = window.open(data.authUrl, 'strava-auth', 'width=600,height=400');
+        const authWindow = window.open(data.authUrl, 'strava-auth', 'width=600,height=400,scrollbars=yes,resizable=yes');
+        
+        console.log('🔥 Auth window opened:', !!authWindow);
+        console.log('🔥 Auth window location:', authWindow?.location);
+        
+        if (!authWindow) {
+          throw new Error('Failed to open popup window. Please allow popups for this site.');
+        }
         
         // Listen for the window to close or receive data
         const checkClosed = setInterval(() => {
           if (authWindow?.closed) {
+            console.log('🔥 Auth window closed by user');
             clearInterval(checkClosed);
             setLoading(false);
           }
@@ -62,6 +71,13 @@ export const StravaImport: React.FC<StravaImportProps> = ({ onRouteImported }) =
           console.log('🔥 Message data:', event.data);
           console.log('🔥 Message origin:', event.origin);
           console.log('🔥 Window origin:', window.location.origin);
+          
+          // Skip Lovable platform messages
+          if (event.data && event.data.action === 'seFingerprint') {
+            console.log('🔥 Skipping Lovable platform message');
+            return;
+          }
+          
           console.log('🔥 Event data type:', event.data?.type);
           console.log('🔥 Event data routes length:', event.data?.routes?.length);
           
