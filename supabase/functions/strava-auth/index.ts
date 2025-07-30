@@ -26,7 +26,7 @@ serve(async (req) => {
     if (code) {
       console.log('Processing OAuth callback with code:', code);
       
-      const redirectUri = `${url.origin}/functions/v1/strava-auth`;
+      const redirectUri = `https://kmyjfflvxgllibbybwbs.supabase.co/functions/v1/strava-auth`;
       console.log('Using redirect URI:', redirectUri);
       console.log('Using client ID:', clientId);
       console.log('Client secret exists:', !!clientSecret);
@@ -94,7 +94,7 @@ serve(async (req) => {
     }
 
     // Default response for initial auth
-    const redirectUri = `${url.origin}/functions/v1/strava-auth`;
+    const redirectUri = `https://kmyjfflvxgllibbybwbs.supabase.co/functions/v1/strava-auth`;
     const authUrl = `https://www.strava.com/oauth/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&scope=read,activity:read_all`;
     
     return new Response(JSON.stringify({ authUrl }), {
