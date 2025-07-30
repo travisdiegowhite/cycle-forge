@@ -58,19 +58,26 @@ export const StravaImport: React.FC<StravaImportProps> = ({ onRouteImported }) =
 
         // Listen for message from auth window
         const messageHandler = (event: MessageEvent) => {
+          console.log('Received message from auth window:', event.data);
+          
           if (event.origin !== window.location.origin) return;
           
           if (event.data.type === 'STRAVA_AUTH_SUCCESS') {
             clearInterval(checkClosed);
             authWindow?.close();
-            setRoutes(event.data.routes);
-            setAccessToken(event.data.accessToken);
+            
+            // The routes data is in the `routes` property, which is an array
+            const routesData = event.data.routes || [];
+            console.log('Setting routes:', routesData);
+            
+            setRoutes(routesData);
+            setAccessToken(event.data.accessToken || 'strava-token');
             setLoading(false);
             window.removeEventListener('message', messageHandler);
             
             toast({
               title: "Connected to Strava!",
-              description: `Found ${event.data.routes.length} routes.`
+              description: `Found ${routesData.length} routes.`
             });
           } else if (event.data.type === 'STRAVA_AUTH_ERROR') {
             clearInterval(checkClosed);
