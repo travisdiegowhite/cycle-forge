@@ -72,16 +72,21 @@ export const StravaImport: React.FC<StravaImportProps> = ({ onRouteImported }) =
           console.log('🔥 Message origin:', event.origin);
           console.log('🔥 Window origin:', window.location.origin);
           
-          // Skip Lovable platform messages
-          if (event.data && event.data.action === 'seFingerprint') {
-            console.log('🔥 Skipping Lovable platform message');
+          // Skip Lovable platform messages but log them for debugging
+          if (event.data && (
+            event.data.action === 'seFingerprint' ||
+            event.data.type === 'lovable-message' ||
+            event.data.lovable ||
+            typeof event.data === 'string' && event.data.includes('lovable')
+          )) {
+            console.log('🔥 Skipping Lovable platform message:', event.data);
             return;
           }
           
           console.log('🔥 Event data type:', event.data?.type);
           console.log('🔥 Event data routes length:', event.data?.routes?.length);
           
-          // Accept any message for debugging
+          // Accept any message from Strava auth for debugging
           if (event.data && typeof event.data === 'object') {
             console.log('🔥 Processing message with type:', event.data?.type);
             
@@ -118,6 +123,7 @@ export const StravaImport: React.FC<StravaImportProps> = ({ onRouteImported }) =
               });
             } else {
               console.log('🔥 Unknown message type or structure:', event.data);
+              console.log('🔥 Full event data object:', JSON.stringify(event.data, null, 2));
             }
           } else {
             console.log('🔥 Invalid message data:', event.data);
