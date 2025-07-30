@@ -186,7 +186,11 @@ export const StravaImport: React.FC<StravaImportProps> = ({ onRouteImported }) =
               <p className="text-sm text-muted-foreground">
                 Found {routes.length} routes
               </p>
-              <Button variant="outline" size="sm" onClick={() => setRoutes([])}>
+              <Button variant="outline" size="sm" onClick={() => {
+                setRoutes([]);
+                setAccessToken('');
+                setIsOpen(false);
+              }}>
                 Disconnect
               </Button>
             </div>
