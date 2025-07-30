@@ -84,6 +84,15 @@ export const StravaImport: React.FC<StravaImportProps> = ({ onRouteImported }) =
         };
 
         window.addEventListener('message', messageHandler);
+      } else if (data.success && data.routes) {
+        // Handle direct response with routes
+        setRoutes(data.routes);
+        setLoading(false);
+        
+        toast({
+          title: "Connected to Strava!",
+          description: `Found ${data.routes.length} routes.`
+        });
       }
     } catch (error) {
       console.error('Strava connection error:', error);
@@ -98,37 +107,40 @@ export const StravaImport: React.FC<StravaImportProps> = ({ onRouteImported }) =
 
   const importRoute = async (route: StravaRoute) => {
     try {
-      setLoading(true);
-
-      const { data, error } = await supabase.functions.invoke('strava-auth', {
-        body: new URLSearchParams({
-          action: 'get-route',
-          route_id: route.id.toString(),
-          access_token: accessToken
-        })
-      });
-
-      if (error) throw error;
-
-      onRouteImported({
+      console.log('Importing route:', route.name);
+      
+      // Convert Strava route data to our format
+      const routeData = {
         name: route.name,
-        route_geometry: data.map || null,
+        waypoints: [], // Strava routes don't have waypoints in the same format
+        route_geometry: {
+          type: "LineString" as const,
+          coordinates: [] // We'll use the summary_polyline if available
+        },
         route_stats: {
-          distance: route.distance,
-          elevation_gain: route.elevation_gain,
-          duration: route.estimated_moving_time
+          distance: route.distance / 1000, // Convert meters to km
+          duration: Math.round(route.estimated_moving_time / 60), // Convert seconds to minutes
+          elevationGain: Math.round(route.elevation_gain || 0),
+          elevationLoss: 0, // Not provided by Strava
+          maxElevation: 0, // Not provided by Strava
+          minElevation: 0, // Not provided by Strava
+          waypointCount: 0
         }
-      });
+      };
 
+      onRouteImported(routeData);
+      
+      toast({
+        title: "Route Imported",
+        description: `Successfully imported "${route.name}" from Strava`,
+      });
       setIsOpen(false);
-      setLoading(false);
     } catch (error) {
-      console.error('Route import error:', error);
-      setLoading(false);
+      console.error('Error importing route:', error);
       toast({
         title: "Import Failed",
         description: "Failed to import route from Strava",
-        variant: "destructive"
+        variant: "destructive",
       });
     }
   };
