@@ -75,17 +75,27 @@ const RouteMap: React.FC = () => {
   // Get Mapbox token from edge function
   useEffect(() => {
     const getMapboxToken = async () => {
+      console.log('getMapboxToken called', { 
+        hasSession: !!session, 
+        hasAccessToken: !!session?.access_token,
+        isLoadingToken 
+      });
+      
       if (!session?.access_token) {
+        console.log('No session or access token, setting loading to false');
         setIsLoadingToken(false);
         return;
       }
 
       try {
+        console.log('Calling get-mapbox-token function...');
         const { data, error } = await supabase.functions.invoke('get-mapbox-token', {
           headers: {
             Authorization: `Bearer ${session.access_token}`,
           },
         });
+
+        console.log('get-mapbox-token response:', { data, error });
 
         if (error) {
           console.error('Error getting Mapbox token:', error);
@@ -98,7 +108,10 @@ const RouteMap: React.FC = () => {
         }
 
         if (data?.token) {
+          console.log('Mapbox token received, setting token');
           setMapboxToken(data.token);
+        } else {
+          console.log('No token in response data:', data);
         }
       } catch (error) {
         console.error('Error calling get-mapbox-token function:', error);
@@ -108,6 +121,7 @@ const RouteMap: React.FC = () => {
           variant: "destructive",
         });
       } finally {
+        console.log('Setting isLoadingToken to false');
         setIsLoadingToken(false);
       }
     };
@@ -1021,6 +1035,7 @@ const RouteMap: React.FC = () => {
 
   // Show loading state while getting token
   if (isLoadingToken) {
+    console.log('Still loading token...', { isLoadingToken, session: !!session });
     return (
       <div className="relative w-full h-[600px] bg-muted rounded-lg flex items-center justify-center">
         <div className="text-center">
@@ -1033,6 +1048,7 @@ const RouteMap: React.FC = () => {
 
   // Show error state if no token
   if (!mapboxToken) {
+    console.log('No mapbox token available', { mapboxToken, isLoadingToken, session: !!session });
     return (
       <div className="relative w-full h-[600px] bg-muted rounded-lg flex items-center justify-center">
         <div className="text-center">
