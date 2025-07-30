@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'getAuthUrl') {
-      const redirectUri = `${req.headers.get('origin')}/`
+      const redirectUri = req.headers.get('origin')
       const scope = 'read,activity:read_all'
       const authUrl = `https://www.strava.com/oauth/authorize?client_id=${CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}&state=${user.id}`
       
