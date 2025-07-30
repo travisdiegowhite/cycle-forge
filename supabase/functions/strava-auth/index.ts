@@ -26,6 +26,8 @@ serve(async (req) => {
     if (code) {
       console.log('Processing OAuth callback with code:', code);
       
+      const redirectUri = `${url.origin}/functions/v1/strava-auth`;
+      
       const tokenResponse = await fetch('https://www.strava.com/oauth/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -33,7 +35,8 @@ serve(async (req) => {
           client_id: clientId,
           client_secret: clientSecret,
           code: code,
-          grant_type: 'authorization_code'
+          grant_type: 'authorization_code',
+          redirect_uri: redirectUri
         })
       });
 
