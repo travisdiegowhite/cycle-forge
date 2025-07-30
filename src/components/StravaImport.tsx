@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
@@ -29,34 +30,71 @@ export function StravaImport({ onRouteImported }: StravaImportProps) {
   const [activities, setActivities] = useState<StravaActivity[]>([]);
   const [loading, setLoading] = useState(false);
   const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [debugInfo, setDebugInfo] = useState<string>('');
   const { toast } = useToast();
 
   useEffect(() => {
+    console.log('StravaImport useEffect triggered');
+    console.log('Current URL:', window.location.href);
+    console.log('URL params:', window.location.search);
+    
     // Check for Strava auth code in URL
     const urlParams = new URLSearchParams(window.location.search);
     const code = urlParams.get('code');
     const state = urlParams.get('state');
+    const error = urlParams.get('error');
+    
+    console.log('OAuth params:', { code, state, error });
+    
+    setDebugInfo(`URL: ${window.location.href}, Code: ${code}, State: ${state}, Error: ${error}`);
+    
+    if (error) {
+      console.error('OAuth error:', error);
+      toast({
+        title: "Authorization Error",
+        description: `Strava returned an error: ${error}`,
+        variant: "destructive"
+      });
+      return;
+    }
     
     if (code && state) {
+      console.log('Found OAuth code, attempting to exchange token');
       exchangeStravaToken(code);
       // Clean up URL
       window.history.replaceState({}, document.title, window.location.pathname);
+    } else {
+      console.log('No OAuth code found in URL');
     }
   }, []);
 
   const connectStrava = async () => {
     try {
+      console.log('Initiating Strava connection');
       setLoading(true);
+      setDebugInfo('Connecting to Strava...');
+      
       const { data, error } = await supabase.functions.invoke('strava-auth', {
         body: { action: 'getAuthUrl' }
       });
 
-      if (error) throw error;
+      console.log('Auth URL response:', { data, error });
 
-      // Redirect to Strava authorization
-      window.location.href = data.authUrl;
+      if (error) {
+        console.error('Error getting auth URL:', error);
+        throw error;
+      }
+
+      console.log('Redirecting to Strava:', data.authUrl);
+      setDebugInfo(`Redirecting to: ${data.authUrl}`);
+      
+      // Add a small delay to ensure the debug info is set
+      setTimeout(() => {
+        window.location.href = data.authUrl;
+      }, 100);
     } catch (error) {
       console.error('Error connecting to Strava:', error);
+      setDebugInfo(`Connection error: ${error}`);
       toast({
         title: "Connection Failed",
         description: "Failed to connect to Strava. Please try again.",
@@ -69,22 +107,34 @@ export function StravaImport({ onRouteImported }: StravaImportProps) {
 
   const exchangeStravaToken = async (code: string) => {
     try {
+      console.log('Exchanging Strava token with code:', code);
       setLoading(true);
+      setDebugInfo('Exchanging authorization code...');
+      
       const { data, error } = await supabase.functions.invoke('strava-auth', {
         body: { action: 'exchangeToken', code }
       });
 
-      if (error) throw error;
+      console.log('Token exchange response:', { data, error });
 
+      if (error) {
+        console.error('Token exchange error:', error);
+        setDebugInfo(`Token exchange error: ${JSON.stringify(error)}`);
+        throw error;
+      }
+
+      console.log('Token exchange successful');
       setAccessToken(data.access_token);
+      setDebugInfo('Token received, fetching activities...');
       await fetchActivities(data.access_token);
       
       toast({
         title: "Connected to Strava",
-        description: `Welcome, ${data.athlete.firstname}! Loading your activities...`
+        description: `Welcome, ${data.athlete?.firstname || 'athlete'}! Loading your activities...`
       });
     } catch (error) {
       console.error('Error exchanging token:', error);
+      setDebugInfo(`Exchange error: ${error}`);
       toast({
         title: "Authentication Failed",
         description: "Failed to authenticate with Strava. Please try again.",
@@ -97,15 +147,27 @@ export function StravaImport({ onRouteImported }: StravaImportProps) {
 
   const fetchActivities = async (token: string) => {
     try {
+      console.log('Fetching Strava activities');
+      setDebugInfo('Fetching activities...');
+      
       const { data, error } = await supabase.functions.invoke('strava-auth', {
         body: { action: 'getActivities', accessToken: token }
       });
 
-      if (error) throw error;
+      console.log('Activities response:', { data, error });
 
-      setActivities(data.activities);
+      if (error) {
+        console.error('Activities fetch error:', error);
+        setDebugInfo(`Activities error: ${JSON.stringify(error)}`);
+        throw error;
+      }
+
+      console.log(`Fetched ${data.activities?.length || 0} activities`);
+      setActivities(data.activities || []);
+      setDebugInfo(`Loaded ${data.activities?.length || 0} activities`);
     } catch (error) {
       console.error('Error fetching activities:', error);
+      setDebugInfo(`Fetch error: ${error}`);
       toast({
         title: "Failed to Load Activities",
         description: "Could not load your Strava activities. Please try again.",
@@ -195,6 +257,13 @@ export function StravaImport({ onRouteImported }: StravaImportProps) {
         <DialogHeader>
           <DialogTitle>Import Routes from Strava</DialogTitle>
         </DialogHeader>
+        
+        {/* Debug info */}
+        {debugInfo && (
+          <div className="text-xs text-muted-foreground bg-muted p-2 rounded mb-4">
+            <strong>Debug:</strong> {debugInfo}
+          </div>
+        )}
         
         {!accessToken ? (
           <div className="text-center py-8">
