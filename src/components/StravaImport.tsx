@@ -109,6 +109,9 @@ export const StravaImport: React.FC<StravaImportProps> = ({ onRouteImported }) =
         };
 
         window.addEventListener('message', messageHandler);
+        
+        // Test that message handler is set up
+        console.log('🔥 Message handler registered, waiting for messages...');
       } else if (data.success && data.routes) {
         // Handle direct response with routes
         setRoutes(data.routes);
