@@ -10,8 +10,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { supabase } from "@/integrations/supabase/client";
 import { StravaImport } from './StravaImport';
+import { StravaRoutesViewer } from './StravaRoutesViewer';
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { decodePolyline, calculateCenter, calculateBounds } from '@/utils/polylineDecoder';
 import { 
   Sidebar, 
   SidebarContent, 
@@ -67,6 +69,8 @@ const RouteMap: React.FC = () => {
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [showLoadDialog, setShowLoadDialog] = useState(false);
   const [routeName, setRouteName] = useState('');
+  const [stravaRoutes, setStravaRoutes] = useState<any[]>([]);
+  const [visibleStravaRoutes, setVisibleStravaRoutes] = useState<Set<number>>(new Set());
 
   // Get Mapbox token from edge function
   useEffect(() => {
@@ -881,25 +885,79 @@ const RouteMap: React.FC = () => {
     }
   };
 
-  const handleStravaImport = (routeData: any) => {
-    // Clear existing route
-    clearRoute();
-    
-    // If the route has map data, process it
-    if (routeData.route_geometry?.map) {
-      // For now, we'll just save the route data
-      setRouteStats({
-        distance: routeData.route_stats?.distance || 0,
-        duration: routeData.route_stats?.duration || 0,
-        elevationGain: routeData.route_stats?.elevation_gain || 0,
-        waypointCount: 0
-      });
-    }
-    
-    toast({
-      title: "Route Imported",
-      description: `"${routeData.name}" imported successfully from Strava.`
+  const handleStravaRouteImported = (routeData: any) => {
+    setStravaRoutes(prev => [...prev, routeData]);
+  };
+
+  const handleStravaRouteToggle = (routeId: number) => {
+    setVisibleStravaRoutes(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(routeId)) {
+        newSet.delete(routeId);
+        removeStravaRouteFromMap(routeId);
+      } else {
+        newSet.add(routeId);
+        addStravaRouteToMap(routeId);
+      }
+      return newSet;
     });
+  };
+
+  const handleStravaRouteFocus = (routeId: number) => {
+    const route = stravaRoutes.find(r => r.id === routeId);
+    if (route && route.map?.summary_polyline && map.current) {
+      const coordinates = decodePolyline(route.map.summary_polyline);
+      const bounds = calculateBounds(coordinates);
+      
+      map.current.fitBounds([bounds[0], bounds[1]], { padding: 50 });
+    }
+  };
+
+  const addStravaRouteToMap = (routeId: number) => {
+    const route = stravaRoutes.find(r => r.id === routeId);
+    if (!route || !route.map?.summary_polyline || !map.current) return;
+
+    const coordinates = decodePolyline(route.map.summary_polyline);
+    
+    map.current.addSource(`strava-route-${routeId}`, {
+      type: 'geojson',
+      data: {
+        type: 'Feature',
+        properties: { id: routeId, name: route.name },
+        geometry: {
+          type: 'LineString',
+          coordinates
+        }
+      }
+    });
+
+    map.current.addLayer({
+      id: `strava-route-${routeId}`,
+      type: 'line',
+      source: `strava-route-${routeId}`,
+      layout: {
+        'line-join': 'round',
+        'line-cap': 'round'
+      },
+      paint: {
+        'line-color': 'hsl(210, 100%, 50%)',
+        'line-width': 3,
+        'line-opacity': 0.7
+      }
+    });
+  };
+
+  const removeStravaRouteFromMap = (routeId: number) => {
+    if (!map.current) return;
+
+    const sourceId = `strava-route-${routeId}`;
+    
+    if (map.current.getLayer(sourceId)) {
+      map.current.removeLayer(sourceId);
+    }
+    if (map.current.getSource(sourceId)) {
+      map.current.removeSource(sourceId);
+    }
   };
 
   const exportRoute = () => {
@@ -1177,7 +1235,16 @@ const RouteMap: React.FC = () => {
                     Go to My Location
                   </Button>
                   
-                  <StravaImport onRouteImported={handleStravaImport} />
+                  <StravaImport onRouteImported={handleStravaRouteImported} />
+                  
+                  {stravaRoutes.length > 0 && (
+                    <StravaRoutesViewer 
+                      routes={stravaRoutes}
+                      visibleRoutes={visibleStravaRoutes}
+                      onRouteToggle={handleStravaRouteToggle}
+                      onRouteFocus={handleStravaRouteFocus}
+                    />
+                  )}
                   
                 </div>
                 

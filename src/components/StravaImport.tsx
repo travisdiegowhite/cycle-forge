@@ -112,26 +112,8 @@ export const StravaImport: React.FC<StravaImportProps> = ({ onRouteImported }) =
     try {
       console.log('Importing route:', route.name);
       
-      // Convert Strava route data to our format
-      const routeData = {
-        name: route.name,
-        waypoints: [], // Strava routes don't have waypoints in the same format
-        route_geometry: {
-          type: "LineString" as const,
-          coordinates: [] // We'll use the summary_polyline if available
-        },
-        route_stats: {
-          distance: route.distance / 1000, // Convert meters to km
-          duration: Math.round(route.estimated_moving_time / 60), // Convert seconds to minutes
-          elevationGain: Math.round(route.elevation_gain || 0),
-          elevationLoss: 0, // Not provided by Strava
-          maxElevation: 0, // Not provided by Strava
-          minElevation: 0, // Not provided by Strava
-          waypointCount: 0
-        }
-      };
-
-      onRouteImported(routeData);
+      // Pass the full route data including the map polyline
+      onRouteImported(route);
       
       toast({
         title: "Route Imported",
