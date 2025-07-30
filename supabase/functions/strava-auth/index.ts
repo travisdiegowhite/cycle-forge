@@ -38,10 +38,12 @@ serve(async (req) => {
       });
 
       const tokenData = await tokenResponse.json();
+      console.log('Token response status:', tokenResponse.status);
       console.log('Token response:', tokenData);
 
-      if (!tokenData.access_token) {
-        throw new Error('Failed to get access token');
+      if (!tokenResponse.ok || !tokenData.access_token) {
+        console.error('Token exchange failed:', tokenData);
+        throw new Error(`Failed to get access token: ${JSON.stringify(tokenData)}`);
       }
 
       // Fetch athlete's routes
