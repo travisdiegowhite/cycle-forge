@@ -1103,7 +1103,7 @@ const RouteMap: React.FC = () => {
         
         {/* Route Statistics Panel - Only show when route exists */}
         {routeGeometry && (
-          <div className="absolute top-4 right-4 z-10">
+          <div className="absolute top-4 left-4 z-10">
             <Card className="p-4 shadow-card bg-background/95 backdrop-blur-sm border">
               <div className="space-y-3">
                 <h3 className="font-medium text-card-foreground flex items-center gap-2">
