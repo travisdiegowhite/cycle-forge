@@ -1101,7 +1101,7 @@ const RouteMap: React.FC = () => {
       <div className="flex-1 flex flex-col">
         <div 
           ref={mapContainer} 
-          className={`flex-1 ${routeGeometry ? 'h-[calc(100%-12rem)]' : 'h-full'}`}
+          className="flex-1"
         />
         
         {/* Route Statistics Panel - Only show when route exists */}
