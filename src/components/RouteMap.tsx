@@ -1099,7 +1099,11 @@ const RouteMap: React.FC = () => {
 
       {/* Map Container */}
       <div className="flex-1 relative">
-        <div ref={mapContainer} className="absolute inset-0" />
+        <div 
+          ref={mapContainer} 
+          className={`absolute inset-0 ${routeGeometry ? 'bottom-40' : ''}`}
+          style={routeGeometry ? { bottom: '10rem' } : {}}
+        />
         
         {/* Route Statistics Panel - Only show when route exists */}
         {routeGeometry && (
