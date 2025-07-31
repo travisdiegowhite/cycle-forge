@@ -75,12 +75,7 @@ const StravaRoutes = () => {
     }
   }, [toast]);
 
-  useEffect(() => {
-    // Redirect to auth page if not authenticated
-    if (!loading && !user) {
-      navigate('/auth');
-    }
-  }, [user, loading, navigate]);
+  // No authentication required for Strava import flow
 
   const handleSignOut = async () => {
     await signOut();
@@ -116,10 +111,7 @@ const StravaRoutes = () => {
     );
   }
 
-  // Don't render if not authenticated (will redirect)
-  if (!user) {
-    return null;
-  }
+  // Show page regardless of authentication status for Strava flow
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background/95 to-background/90">
@@ -141,14 +133,16 @@ const StravaRoutes = () => {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-muted-foreground">
-              Welcome, {user.email}
-            </span>
-            <Button variant="outline" onClick={handleSignOut}>
-              Sign Out
-            </Button>
-          </div>
+          {user && (
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-muted-foreground">
+                Welcome, {user.email}
+              </span>
+              <Button variant="outline" onClick={handleSignOut}>
+                Sign Out
+              </Button>
+            </div>
+          )}
         </div>
 
         <div className="mb-6">
