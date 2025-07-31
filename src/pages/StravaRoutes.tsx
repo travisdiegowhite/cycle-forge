@@ -82,9 +82,6 @@ const StravaRoutes = () => {
     navigate('/auth');
   };
 
-  const handleRouteImported = (route: StravaRoute) => {
-    setImportedRoutes(prev => [...prev, route]);
-  };
 
   const formatDistance = (distance: number) => {
     return `${(distance / 1000).toFixed(1)} km`;
@@ -146,7 +143,7 @@ const StravaRoutes = () => {
         </div>
 
         <div className="mb-6">
-          <StravaImport onRouteImported={handleRouteImported} />
+          <StravaImport />
         </div>
 
         {importedRoutes.length > 0 ? (

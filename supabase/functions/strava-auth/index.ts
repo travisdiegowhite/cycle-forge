@@ -13,7 +13,6 @@ serve(async (req) => {
   try {
     const url = new URL(req.url);
     const code = url.searchParams.get('code');
-    const action = url.searchParams.get('action');
 
     const clientId = Deno.env.get('STRAVA_CLIENT_ID');
     const clientSecret = Deno.env.get('STRAVA_CLIENT_SECRET');
@@ -107,23 +106,6 @@ serve(async (req) => {
       });
     }
 
-    // Handle route details request
-    if (action === 'get-route' && url.searchParams.get('route_id') && url.searchParams.get('access_token')) {
-      const routeId = url.searchParams.get('route_id');
-      const accessToken = url.searchParams.get('access_token');
-
-      const routeResponse = await fetch(`https://www.strava.com/api/v3/routes/${routeId}`, {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`
-        }
-      });
-
-      const routeData = await routeResponse.json();
-      
-      return new Response(JSON.stringify(routeData), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
 
     // Default response for initial auth
     let appOrigin = url.searchParams.get('app_origin') || req.headers.get('referer') || 'https://8523dd48-6a5c-4647-b24a-1fd9b88b27fd.lovableproject.com';
