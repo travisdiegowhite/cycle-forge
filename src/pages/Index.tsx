@@ -64,8 +64,10 @@ const Index = () => {
           </div>
         </div>
 
-        {/* Main Content Area with Sidebar */}
-        <RouteMap />
+        {/* Main Content Area */}
+        <div className="flex-1 pt-16">
+          <RouteMap />
+        </div>
       </div>
     </SidebarProvider>
   );
