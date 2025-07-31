@@ -1,8 +1,6 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { Button } from "@/components/ui/button";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import RouteMap from "@/components/RouteMap";
 
 const Index = () => {
@@ -38,38 +36,32 @@ const Index = () => {
   }
 
   return (
-    <SidebarProvider>
-      <div className="min-h-screen flex w-full bg-gradient-to-br from-background via-background/95 to-background/90">
-        {/* Top Navigation Bar */}
-        <div className="fixed top-0 left-0 right-0 z-50 h-16 bg-background/95 backdrop-blur-sm border-b border-border">
-          <div className="h-full flex items-center justify-between px-4">
-            <div className="flex items-center gap-4">
-              <SidebarTrigger />
-              <div>
-                <h1 className="text-xl font-bold text-foreground">Route Builder</h1>
-                <p className="text-sm text-muted-foreground">Plan your perfect route</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-4">
-              <Button variant="outline" onClick={() => navigate('/strava-routes')}>
-                Strava Routes
-              </Button>
-              <span className="text-sm text-muted-foreground">
-                Welcome, {user.email}
-              </span>
-              <Button variant="outline" onClick={handleSignOut}>
-                Sign Out
-              </Button>
-            </div>
-          </div>
+    <div className="min-h-screen flex flex-col">
+      {/* Top Navigation */}
+      <nav className="bg-background border-b px-4 py-3 flex items-center justify-between">
+        <div className="flex items-center space-x-4">
+          <h1 className="text-xl font-bold">Route Builder</h1>
         </div>
+        <div className="flex items-center space-x-4">
+          <span className="text-sm text-muted-foreground">Welcome, {user.email}</span>
+          <button
+            onClick={() => navigate("/strava-routes")}
+            className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-md text-sm font-medium"
+          >
+            Strava Routes
+          </button>
+          <button
+            onClick={handleSignOut}
+            className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md text-sm font-medium"
+          >
+            Sign Out
+          </button>
+        </div>
+      </nav>
 
-        {/* Main Content Area */}
-        <div className="flex-1 pt-16">
-          <RouteMap />
-        </div>
-      </div>
-    </SidebarProvider>
+      {/* Main Content */}
+      <RouteMap />
+    </div>
   );
 };
 
