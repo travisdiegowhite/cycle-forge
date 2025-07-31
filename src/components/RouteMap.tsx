@@ -966,7 +966,7 @@ const RouteMap: React.FC = () => {
     }
   };
 
-  const exportRoute = () => {
+  const exportRoute = useCallback(() => {
     if (!routeGeometry || waypoints.length === 0) return;
 
     const timestamp = new Date().toISOString();
@@ -1023,7 +1023,7 @@ const RouteMap: React.FC = () => {
       title: "Route Exported",
       description: "GPX file has been downloaded successfully.",
     });
-  };
+  }, [routeGeometry, waypoints, routeStats, useMetric, toast]);
 
   // Show loading state while getting token
   if (isLoadingToken) {
