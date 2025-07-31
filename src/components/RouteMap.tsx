@@ -1284,6 +1284,55 @@ const RouteMap: React.FC = () => {
                   </p>
                 )}
 
+                {/* Load Route - Always Available */}
+                <Dialog open={showLoadDialog} onOpenChange={setShowLoadDialog}>
+                  <DialogTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                    >
+                      <FolderOpen className="h-3 w-3 mr-1" />
+                      Load Saved Route
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Load Saved Route</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      {savedRoutes.length === 0 ? (
+                        <p className="text-muted-foreground">No saved routes found.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {savedRoutes.map((route) => (
+                            <div
+                              key={route.id}
+                              className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50"
+                            >
+                              <div>
+                                <div className="font-medium">{route.name}</div>
+                                <div className="text-sm text-muted-foreground">
+                                  {new Date(route.created_at).toLocaleDateString()}
+                                </div>
+                              </div>
+                              <Button
+                                onClick={() => loadRoute(route.id)}
+                                size="sm"
+                              >
+                                Load
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <Button variant="outline" onClick={() => setShowLoadDialog(false)} className="w-full">
+                        Cancel
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+
                 {waypoints.length > 0 && (
                   <div className="space-y-2">
                     <Button
@@ -1327,54 +1376,6 @@ const RouteMap: React.FC = () => {
                                 Cancel
                               </Button>
                             </div>
-                          </div>
-                        </DialogContent>
-                      </Dialog>
-
-                      <Dialog open={showLoadDialog} onOpenChange={setShowLoadDialog}>
-                        <DialogTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="flex-1"
-                          >
-                            <FolderOpen className="h-3 w-3 mr-1" />
-                            Load
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>Load Saved Route</DialogTitle>
-                          </DialogHeader>
-                          <div className="space-y-4">
-                            {savedRoutes.length === 0 ? (
-                              <p className="text-muted-foreground">No saved routes found.</p>
-                            ) : (
-                              <div className="space-y-2">
-                                {savedRoutes.map((route) => (
-                                  <div
-                                    key={route.id}
-                                    className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50"
-                                  >
-                                    <div>
-                                      <div className="font-medium">{route.name}</div>
-                                      <div className="text-sm text-muted-foreground">
-                                        {new Date(route.created_at).toLocaleDateString()}
-                                      </div>
-                                    </div>
-                                    <Button
-                                      onClick={() => loadRoute(route.id)}
-                                      size="sm"
-                                    >
-                                      Load
-                                    </Button>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                            <Button variant="outline" onClick={() => setShowLoadDialog(false)} className="w-full">
-                              Cancel
-                            </Button>
                           </div>
                         </DialogContent>
                       </Dialog>
