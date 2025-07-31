@@ -1098,7 +1098,7 @@ const RouteMap: React.FC = () => {
       />
 
       {/* Map Container */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-w-0">
         <div 
           ref={mapContainer} 
           className="flex-1"
