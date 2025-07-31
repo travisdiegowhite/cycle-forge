@@ -129,7 +129,8 @@ serve(async (req) => {
     });
     
     const redirectUri = `https://kmyjfflvxgllibbybwbs.supabase.co/functions/v1/strava-auth?app_origin=${encodeURIComponent(appOrigin)}`;
-    const authUrl = `https://www.strava.com/oauth/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&scope=read,activity:read_all`;
+    // Try with minimal scope first - just read access
+    const authUrl = `https://www.strava.com/oauth/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&scope=read`;
     
     console.log('Generated auth URL:', authUrl);
     console.log('Redirect URI:', redirectUri);
