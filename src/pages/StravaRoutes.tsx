@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { MapPin, Clock, TrendingUp, ArrowLeft } from "lucide-react";
 import { StravaImport } from "@/components/StravaImport";
+import { useToast } from "@/hooks/use-toast";
 
 interface StravaRoute {
   id: number;
@@ -30,6 +31,49 @@ const StravaRoutes = () => {
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
   const [importedRoutes, setImportedRoutes] = useState<StravaRoute[]>([]);
+  const { toast } = useToast();
+
+  // Handle Strava OAuth callback
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const stravaSuccess = urlParams.get('strava_success');
+    
+    if (stravaSuccess === 'true') {
+      // Get routes from sessionStorage
+      const routesData = sessionStorage.getItem('strava_routes');
+      const athleteData = sessionStorage.getItem('strava_athlete');
+      
+      if (routesData) {
+        try {
+          const routes = JSON.parse(routesData);
+          const athlete = athleteData ? JSON.parse(athleteData) : null;
+          
+          setImportedRoutes(routes);
+          
+          // Clear stored data
+          sessionStorage.removeItem('strava_routes');
+          sessionStorage.removeItem('strava_athlete');
+          sessionStorage.removeItem('strava_access_token');
+          
+          // Clean up URL
+          window.history.replaceState({}, '', '/strava-routes');
+          
+          // Show success message
+          toast({
+            title: "Connected to Strava!",
+            description: `Successfully imported ${routes.length} routes from ${athlete?.firstname || 'your'} Strava account.`,
+          });
+        } catch (error) {
+          console.error('Error parsing Strava data:', error);
+          toast({
+            title: "Import Error",
+            description: "Failed to process Strava data.",
+            variant: "destructive",
+          });
+        }
+      }
+    }
+  }, [toast]);
 
   useEffect(() => {
     // Redirect to auth page if not authenticated
