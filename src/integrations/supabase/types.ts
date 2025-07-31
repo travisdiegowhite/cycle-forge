@@ -22,6 +22,9 @@ export type Database = {
           first_name: string | null
           id: string
           last_name: string | null
+          strava_access_token: string | null
+          strava_refresh_token: string | null
+          strava_token_expires_at: string | null
           updated_at: string
           user_id: string
         }
@@ -32,6 +35,9 @@ export type Database = {
           first_name?: string | null
           id?: string
           last_name?: string | null
+          strava_access_token?: string | null
+          strava_refresh_token?: string | null
+          strava_token_expires_at?: string | null
           updated_at?: string
           user_id: string
         }
@@ -42,6 +48,9 @@ export type Database = {
           first_name?: string | null
           id?: string
           last_name?: string | null
+          strava_access_token?: string | null
+          strava_refresh_token?: string | null
+          strava_token_expires_at?: string | null
           updated_at?: string
           user_id?: string
         }
