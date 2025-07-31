@@ -122,8 +122,17 @@ serve(async (req) => {
       }
     }
     
+    console.log('Generating auth URL with:', {
+      clientId,
+      appOrigin,
+      hasClientSecret: !!clientSecret
+    });
+    
     const redirectUri = `https://kmyjfflvxgllibbybwbs.supabase.co/functions/v1/strava-auth?app_origin=${encodeURIComponent(appOrigin)}`;
     const authUrl = `https://www.strava.com/oauth/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&scope=read,activity:read_all`;
+    
+    console.log('Generated auth URL:', authUrl);
+    console.log('Redirect URI:', redirectUri);
     
     return new Response(JSON.stringify({ authUrl }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
