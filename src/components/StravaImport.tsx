@@ -41,106 +41,35 @@ export const StravaImport: React.FC<StravaImportProps> = ({ onRouteImported }) =
     setLoading(true);
 
     try {
-      // Check if we already have data from URL parameters (redirect flow)
-      const checkUrlParams = () => {
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get('strava_auth') === 'success') {
-          const routesParam = urlParams.get('routes');
-          const accessTokenParam = urlParams.get('access_token');
-          
-          if (routesParam) {
-            try {
-              const routesData = JSON.parse(decodeURIComponent(routesParam));
-              const accessTokenData = accessTokenParam ? decodeURIComponent(accessTokenParam) : 'strava-token';
-              
-              console.log('🔥 Found Strava data in URL!');
-              console.log('🔥 Number of routes:', routesData.length);
-              
-              setRoutes(routesData);
-              setAccessToken(accessTokenData);
-              setLoading(false);
-              
-              // Clean up URL
-              window.history.replaceState({}, document.title, window.location.pathname);
-              
-              toast({
-                title: "Connected to Strava!",
-                description: `Found ${routesData.length} routes.`
-              });
-              return true;
-            } catch (e) {
-              console.error('🔥 Failed to parse URL data:', e);
-            }
-          }
-        }
-        return false;
-      };
-
-      // Check URL first
-      if (checkUrlParams()) {
-        return;
-      }
-
-      // Invoke the Supabase function to get the auth URL
+      // Invoke the Supabase function directly - no popup needed
       const { data, error } = await supabase.functions.invoke('strava-auth');
       
       if (error) {
-        console.error('Error getting auth URL:', error);
+        console.error('Error calling strava-auth:', error);
         throw error;
       }
 
-      if (data?.authUrl) {
-        console.log('Got auth URL:', data.authUrl);
+      console.log('Strava auth response:', data);
+
+      if (data?.success && data?.routes) {
+        // Routes returned directly from server
+        console.log('🔥 Got routes directly from server!');
+        console.log('🔥 Number of routes:', data.routes.length);
         
-        // Open popup window
-        const authWindow = window.open(
-          data.authUrl,
-          'strava-auth',
-          'width=600,height=700,scrollbars=yes,resizable=yes'
-        );
-
-        if (!authWindow) {
-          throw new Error('Failed to open popup window. Please allow popups for this site.');
-        }
-
-        // Check if popup was closed manually or redirected back
-        const checkClosed = setInterval(() => {
-          if (authWindow.closed) {
-            clearInterval(checkClosed);
-            setLoading(false);
-            window.removeEventListener('message', messageHandler);
-            // Check URL again in case popup redirected back
-            setTimeout(checkUrlParams, 100);
-          }
-        }, 1000);
-
-        // Listen for messages from the popup (fallback method)
-        const messageHandler = (event: MessageEvent) => {
-          console.log('🔥 Received fallback message from popup:', event);
-          
-          // Check if message has routes data
-          if (event.data && event.data.routes && Array.isArray(event.data.routes)) {
-            console.log('🔥 Routes detected in fallback message!');
-            console.log('🔥 Number of routes:', event.data.routes.length);
-            
-            clearInterval(checkClosed);
-            authWindow?.close();
-            
-            setRoutes(event.data.routes);
-            setAccessToken(event.data.accessToken || 'strava-token');
-            setLoading(false);
-            window.removeEventListener('message', messageHandler);
-            
-            toast({
-              title: "Connected to Strava!",
-              description: `Found ${event.data.routes.length} routes.`
-            });
-          }
-        };
-
-        window.addEventListener('message', messageHandler);
+        setRoutes(data.routes);
+        setAccessToken(data.accessToken || 'strava-token');
+        setLoading(false);
+        
+        toast({
+          title: "Connected to Strava!",
+          description: `Found ${data.routes.length} routes.`
+        });
+      } else if (data?.authUrl) {
+        // Need to complete OAuth - redirect user
+        console.log('🔥 Need to complete OAuth, redirecting to:', data.authUrl);
+        window.location.href = data.authUrl;
       } else {
-        throw new Error('No auth URL received from server');
+        throw new Error('Unexpected response from server');
       }
     } catch (error) {
       console.error('Strava connection error:', error);
