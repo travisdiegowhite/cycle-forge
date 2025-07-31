@@ -1059,7 +1059,7 @@ const RouteMap: React.FC = () => {
   };
 
   return (
-    <div className="flex w-full h-[calc(100vh-4rem)]">
+    <>
       {/* Route Building Sidebar */}
       <RouteSidebar
         locationSearch={locationSearch}
@@ -1098,7 +1098,7 @@ const RouteMap: React.FC = () => {
       />
 
       {/* Map Container */}
-      <div className="flex-1 relative">
+      <main className="flex-1 relative h-[calc(100vh-4rem)]">
         <div ref={mapContainer} className="absolute inset-0" />
         
         {/* Route Statistics Panel - Only show when route exists */}
@@ -1196,8 +1196,8 @@ const RouteMap: React.FC = () => {
             </Card>
           </div>
         )}
-      </div>
-    </div>
+      </main>
+    </>
   );
 };
 
