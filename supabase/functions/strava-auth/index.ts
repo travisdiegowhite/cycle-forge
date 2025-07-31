@@ -90,8 +90,8 @@ serve(async (req) => {
             const routesData = ${JSON.stringify(routes)};
             const athleteData = ${JSON.stringify(tokenData.athlete)};
             
-            sessionStorage.setItem('strava_routes', routesData);
-            sessionStorage.setItem('strava_athlete', athleteData);
+            sessionStorage.setItem('strava_routes', JSON.stringify(routesData));
+            sessionStorage.setItem('strava_athlete', JSON.stringify(athleteData));
             sessionStorage.setItem('strava_access_token', '${tokenData.access_token}');
             
             // Redirect to app
