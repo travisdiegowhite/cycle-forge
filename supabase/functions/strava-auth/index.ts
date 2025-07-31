@@ -19,43 +19,16 @@ serve(async (req) => {
       throw new Error('Strava credentials not configured');
     }
 
-    // Get the user from the request
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      throw new Error('No authorization header');
-    }
-
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      {
-        global: {
-          headers: { Authorization: authHeader },
-        },
-      }
-    );
-
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-      throw new Error('User not authenticated');
-    }
-
-    console.log('Authenticated user:', user.id);
-
-    // Step 1: Get authorization code using device flow approach
-    // We'll use a temporary code approach - generate a state and redirect URL
-    const state = crypto.randomUUID();
-    const redirectUri = `https://kmyjfflvxgllibbybwbs.supabase.co/functions/v1/strava-auth/callback`;
-    
-    // Check if this is a callback request
+    // Check if this is a callback request first (before auth check)
     const url = new URL(req.url);
     const code = url.searchParams.get('code');
     const returnedState = url.searchParams.get('state');
 
     if (code && returnedState) {
-      // This is the callback - exchange code for token
+      // This is the OAuth callback from Strava - handle without user auth
       console.log('Processing OAuth callback with code:', code);
       
+      const redirectUri = `https://kmyjfflvxgllibbybwbs.supabase.co/functions/v1/strava-auth`;
       const tokenPayload = {
         client_id: clientId,
         client_secret: clientSecret,
@@ -92,31 +65,48 @@ serve(async (req) => {
       const routes = await routesResponse.json();
       console.log('Found routes:', routes.length);
 
-      // Store the access token in the user's profile for future use
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .upsert({
-          user_id: user.id,
-          email: user.email,
-          // Store Strava token securely (you might want to encrypt this)
-          strava_access_token: tokenData.access_token,
-          strava_refresh_token: tokenData.refresh_token,
-          strava_token_expires_at: new Date(tokenData.expires_at * 1000).toISOString()
-        });
-
-      if (updateError) {
-        console.error('Failed to store Strava token:', updateError);
-        // Don't fail the request if we can't store the token
-      }
-
-      return new Response(JSON.stringify({
-        success: true,
-        routes: routes,
-        accessToken: tokenData.access_token
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      // For the callback, redirect back to the main app with success data
+      const baseUrl = 'https://8523dd48-6a5c-4647-b24a-1fd9b88b27fd.lovableproject.com';
+      const routesData = encodeURIComponent(JSON.stringify(routes));
+      const accessToken = encodeURIComponent(tokenData.access_token);
+      const athleteData = encodeURIComponent(JSON.stringify(tokenData.athlete));
+      
+      const redirectUrl = `${baseUrl}/?strava_auth=success&routes=${routesData}&access_token=${accessToken}&athlete=${athleteData}`;
+      
+      return new Response(null, {
+        status: 302,
+        headers: {
+          ...corsHeaders,
+          'Location': redirectUrl
+        }
       });
     }
+
+    // For non-callback requests, require authentication
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      throw new Error('No authorization header');
+    }
+
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      {
+        global: {
+          headers: { Authorization: authHeader },
+        },
+      }
+    );
+
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      throw new Error('User not authenticated');
+    }
+
+    console.log('Authenticated user:', user.id);
+
+    const state = crypto.randomUUID();
+    const redirectUri = `https://kmyjfflvxgllibbybwbs.supabase.co/functions/v1/strava-auth`;
 
     // Check if user already has a stored Strava token
     const { data: profile } = await supabase

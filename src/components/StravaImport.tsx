@@ -41,7 +41,47 @@ export const StravaImport: React.FC<StravaImportProps> = ({ onRouteImported }) =
     setLoading(true);
 
     try {
-      // Invoke the Supabase function directly - no popup needed
+      // Check URL parameters first for OAuth callback data
+      const checkUrlParams = () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('strava_auth') === 'success') {
+          const routesParam = urlParams.get('routes');
+          const accessTokenParam = urlParams.get('access_token');
+          
+          if (routesParam) {
+            try {
+              const routesData = JSON.parse(decodeURIComponent(routesParam));
+              const accessTokenData = accessTokenParam ? decodeURIComponent(accessTokenParam) : 'strava-token';
+              
+              console.log('🔥 Found Strava data in URL!');
+              console.log('🔥 Number of routes:', routesData.length);
+              
+              setRoutes(routesData);
+              setAccessToken(accessTokenData);
+              setLoading(false);
+              
+              // Clean up URL
+              window.history.replaceState({}, document.title, window.location.pathname);
+              
+              toast({
+                title: "Connected to Strava!",
+                description: `Found ${routesData.length} routes.`
+              });
+              return true;
+            } catch (e) {
+              console.error('🔥 Failed to parse URL data:', e);
+            }
+          }
+        }
+        return false;
+      };
+
+      // Check URL first
+      if (checkUrlParams()) {
+        return;
+      }
+
+      // Invoke the Supabase function directly
       const { data, error } = await supabase.functions.invoke('strava-auth');
       
       if (error) {
@@ -65,7 +105,7 @@ export const StravaImport: React.FC<StravaImportProps> = ({ onRouteImported }) =
           description: `Found ${data.routes.length} routes.`
         });
       } else if (data?.authUrl) {
-        // Need to complete OAuth - redirect user
+        // Need to complete OAuth - redirect user to Strava
         console.log('🔥 Need to complete OAuth, redirecting to:', data.authUrl);
         window.location.href = data.authUrl;
       } else {
