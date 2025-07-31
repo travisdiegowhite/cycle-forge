@@ -38,15 +38,33 @@ const StravaRoutes = () => {
     const urlParams = new URLSearchParams(window.location.search);
     const stravaSuccess = urlParams.get('strava_success');
     
+    console.log('StravaRoutes callback check:', {
+      url: window.location.href,
+      stravaSuccess,
+      hasParams: window.location.search.length > 0
+    });
+    
     if (stravaSuccess === 'true') {
+      console.log('Processing Strava callback...');
+      
       // Get routes from sessionStorage
       const routesData = sessionStorage.getItem('strava_routes');
       const athleteData = sessionStorage.getItem('strava_athlete');
+      
+      console.log('SessionStorage data:', {
+        routesData: routesData ? routesData.substring(0, 100) + '...' : null,
+        athleteData: athleteData ? athleteData.substring(0, 100) + '...' : null
+      });
       
       if (routesData) {
         try {
           const routes = JSON.parse(routesData);
           const athlete = athleteData ? JSON.parse(athleteData) : null;
+          
+          console.log('Parsed data:', {
+            routesCount: routes.length,
+            athlete: athlete?.firstname || 'unknown'
+          });
           
           setImportedRoutes(routes);
           
@@ -71,6 +89,8 @@ const StravaRoutes = () => {
             variant: "destructive",
           });
         }
+      } else {
+        console.error('No routes data found in sessionStorage');
       }
     }
   }, [toast]);
