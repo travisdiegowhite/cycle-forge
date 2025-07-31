@@ -26,7 +26,8 @@ serve(async (req) => {
     if (code) {
       console.log('Processing OAuth callback with code:', code);
       
-      const redirectUri = `https://kmyjfflvxgllibbybwbs.supabase.co/functions/v1/strava-auth`;
+      const appOriginFromCallback = url.searchParams.get('app_origin') || 'https://8523dd48-6a5c-4647-b24a-1fd9b88b27fd.lovableproject.com';
+      const redirectUri = `https://kmyjfflvxgllibbybwbs.supabase.co/functions/v1/strava-auth?app_origin=${encodeURIComponent(appOriginFromCallback)}`;
       console.log('Using redirect URI:', redirectUri);
       console.log('Using client ID:', clientId);
       console.log('Client secret exists:', !!clientSecret);
@@ -67,7 +68,7 @@ serve(async (req) => {
       console.log('Found routes:', routes.length);
 
       // Store auth data in URL and redirect back to app
-      const appOrigin = url.searchParams.get('app_origin') || 'https://8523dd48-6a5c-4647-b24a-1fd9b88b27fd.lovableproject.com';
+      const appOrigin = appOriginFromCallback;
       const callbackUrl = new URL('/strava-routes', appOrigin);
       
       // Add auth data as URL parameters (encode for safety)
@@ -125,7 +126,20 @@ serve(async (req) => {
     }
 
     // Default response for initial auth
-    const appOrigin = url.searchParams.get('app_origin') || req.headers.get('referer') || 'https://8523dd48-6a5c-4647-b24a-1fd9b88b27fd.lovableproject.com';
+    let appOrigin = url.searchParams.get('app_origin') || req.headers.get('referer') || 'https://8523dd48-6a5c-4647-b24a-1fd9b88b27fd.lovableproject.com';
+    
+    // For POST requests, try to get app_origin from request body
+    if (req.method === 'POST') {
+      try {
+        const body = await req.json();
+        if (body.app_origin) {
+          appOrigin = body.app_origin;
+        }
+      } catch (e) {
+        console.log('No JSON body or app_origin in body, using default');
+      }
+    }
+    
     const redirectUri = `https://kmyjfflvxgllibbybwbs.supabase.co/functions/v1/strava-auth?app_origin=${encodeURIComponent(appOrigin)}`;
     const authUrl = `https://www.strava.com/oauth/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&scope=read,activity:read_all`;
     
