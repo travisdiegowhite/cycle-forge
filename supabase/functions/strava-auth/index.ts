@@ -66,7 +66,21 @@ serve(async (req) => {
       const routes = await routesResponse.json();
       console.log('Found routes:', routes.length);
 
-      // Return HTML with JavaScript to communicate with parent window
+      // Get the referrer origin to redirect back to the main app
+      const referrerOrigin = req.headers.get('referer') || 'https://8523dd48-6a5c-4647-b24a-1fd9b88b27fd.lovableproject.com';
+      const baseUrl = new URL(referrerOrigin).origin;
+      
+      // Encode the data as URL parameters
+      const routesData = encodeURIComponent(JSON.stringify(routes));
+      const accessToken = encodeURIComponent(tokenData.access_token);
+      const athleteData = encodeURIComponent(JSON.stringify(tokenData.athlete));
+      
+      // Redirect back to the main app with data in URL hash
+      const redirectUrl = `${baseUrl}/?strava_auth=success&routes=${routesData}&access_token=${accessToken}&athlete=${athleteData}`;
+      
+      console.log('🔥 Redirecting to:', redirectUrl);
+      
+      // Return HTML that redirects and also tries postMessage as fallback
       const html = `
         <!DOCTYPE html>
         <html>
@@ -74,22 +88,16 @@ serve(async (req) => {
           <title>Strava Auth Success</title>
         </head>
         <body>
-          <p>Authentication successful! Closing window...</p>
+          <p>Authentication successful! Redirecting...</p>
           <script>
             console.log('🔥 Popup window script running');
             console.log('🔥 Window opener exists:', !!window.opener);
-            console.log('🔥 Document referrer:', document.referrer);
             
+            // Primary method: redirect to main app with data
+            window.location.href = '${redirectUrl}';
+            
+            // Fallback method: try postMessage
             if (window.opener) {
-              // Post message to all possible parent origins
-              const possibleOrigins = [
-                '${url.origin}',
-                'https://8523dd48-6a5c-4647-b24a-1fd9b88b27fd.lovableproject.com',
-                'https://lovable.dev',
-                'http://localhost:3000',
-                '*'
-              ];
-              
               const messageData = {
                 type: 'STRAVA_AUTH_SUCCESS',
                 routes: ${JSON.stringify(routes)},
@@ -97,41 +105,12 @@ serve(async (req) => {
                 athlete: ${JSON.stringify(tokenData.athlete)}
               };
               
-              console.log('🔥 Posting message data:', messageData);
-              console.log('🔥 Routes count:', messageData.routes.length);
-              
-              // Try posting to each possible origin
-              possibleOrigins.forEach((origin, index) => {
-                try {
-                  console.log('🔥 Attempting to post to origin ' + index + ':', origin);
-                  window.opener.postMessage(messageData, origin);
-                  console.log('🔥 Successfully posted to origin ' + index + ':', origin);
-                } catch (e) {
-                  console.log('🔥 Failed to post to origin ' + index + ':', origin, e);
-                }
-              });
-              
-              // Also try posting to the referrer if available
-              if (document.referrer) {
-                try {
-                  const referrerOrigin = new URL(document.referrer).origin;
-                  console.log('🔥 Attempting to post to referrer origin:', referrerOrigin);
-                  window.opener.postMessage(messageData, referrerOrigin);
-                  console.log('🔥 Successfully posted to referrer origin:', referrerOrigin);
-                } catch (e) {
-                  console.log('🔥 Failed to post to referrer origin:', e);
-                }
+              try {
+                window.opener.postMessage(messageData, '*');
+                console.log('🔥 Fallback postMessage sent');
+              } catch (e) {
+                console.log('🔥 Fallback postMessage failed:', e);
               }
-              
-              // Wait a bit before closing to ensure message is sent
-              setTimeout(() => {
-                console.log('🔥 Closing popup window');
-                window.close();
-              }, 500);
-            } else {
-              console.log('🔥 No window.opener available');
-              // Fallback for when popup blocker prevents window.opener
-              document.body.innerHTML = '<p>Authentication successful! You can close this window.</p>';
             }
           </script>
         </body>

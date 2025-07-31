@@ -37,50 +37,90 @@ export const StravaImport: React.FC<StravaImportProps> = ({ onRouteImported }) =
   console.log('StravaImport state:', { isOpen, routesCount: routes.length, loading, hasAccessToken: !!accessToken });
 
   const connectToStrava = async () => {
+    console.log('Starting Strava connection...');
+    setLoading(true);
+
     try {
-      setLoading(true);
-      
+      // Check if we already have data from URL parameters (redirect flow)
+      const checkUrlParams = () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('strava_auth') === 'success') {
+          const routesParam = urlParams.get('routes');
+          const accessTokenParam = urlParams.get('access_token');
+          
+          if (routesParam) {
+            try {
+              const routesData = JSON.parse(decodeURIComponent(routesParam));
+              const accessTokenData = accessTokenParam ? decodeURIComponent(accessTokenParam) : 'strava-token';
+              
+              console.log('🔥 Found Strava data in URL!');
+              console.log('🔥 Number of routes:', routesData.length);
+              
+              setRoutes(routesData);
+              setAccessToken(accessTokenData);
+              setLoading(false);
+              
+              // Clean up URL
+              window.history.replaceState({}, document.title, window.location.pathname);
+              
+              toast({
+                title: "Connected to Strava!",
+                description: `Found ${routesData.length} routes.`
+              });
+              return true;
+            } catch (e) {
+              console.error('🔥 Failed to parse URL data:', e);
+            }
+          }
+        }
+        return false;
+      };
+
+      // Check URL first
+      if (checkUrlParams()) {
+        return;
+      }
+
+      // Invoke the Supabase function to get the auth URL
       const { data, error } = await supabase.functions.invoke('strava-auth');
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error getting auth URL:', error);
+        throw error;
+      }
 
-      if (data.authUrl) {
-        console.log('🔥 Opening Strava auth window with URL:', data.authUrl);
-        // Open Strava auth in new window
-        const authWindow = window.open(data.authUrl, 'strava-auth', 'width=600,height=400,scrollbars=yes,resizable=yes');
+      if (data?.authUrl) {
+        console.log('Got auth URL:', data.authUrl);
         
-        console.log('🔥 Auth window opened:', !!authWindow);
-        console.log('🔥 Auth window location:', authWindow?.location);
-        
+        // Open popup window
+        const authWindow = window.open(
+          data.authUrl,
+          'strava-auth',
+          'width=600,height=700,scrollbars=yes,resizable=yes'
+        );
+
         if (!authWindow) {
           throw new Error('Failed to open popup window. Please allow popups for this site.');
         }
-        
-        // Listen for the window to close or receive data
+
+        // Check if popup was closed manually or redirected back
         const checkClosed = setInterval(() => {
-          if (authWindow?.closed) {
-            console.log('🔥 Auth window closed by user');
+          if (authWindow.closed) {
             clearInterval(checkClosed);
             setLoading(false);
+            window.removeEventListener('message', messageHandler);
+            // Check URL again in case popup redirected back
+            setTimeout(checkUrlParams, 100);
           }
         }, 1000);
 
-        // Listen for message from auth window
+        // Listen for messages from the popup (fallback method)
         const messageHandler = (event: MessageEvent) => {
-          console.log('🔥 Received message from auth window:', event);
-          console.log('🔥 Message data:', event.data);
-          console.log('🔥 Message origin:', event.origin);
-          console.log('🔥 Window origin:', window.location.origin);
+          console.log('🔥 Received fallback message from popup:', event);
           
-          // Skip Lovable platform messages
-          if (event.data && event.data.action === 'seFingerprint') {
-            console.log('🔥 Skipping Lovable platform message');
-            return;
-          }
-          
-          // Check if message has routes data (regardless of type field)
+          // Check if message has routes data
           if (event.data && event.data.routes && Array.isArray(event.data.routes)) {
-            console.log('🔥 Routes detected in message!');
+            console.log('🔥 Routes detected in fallback message!');
             console.log('🔥 Number of routes:', event.data.routes.length);
             
             clearInterval(checkClosed);
@@ -95,67 +135,20 @@ export const StravaImport: React.FC<StravaImportProps> = ({ onRouteImported }) =
               title: "Connected to Strava!",
               description: `Found ${event.data.routes.length} routes.`
             });
-            return;
-          }
-          
-          // Handle specific message types
-          if (event.data && typeof event.data === 'object') {
-            console.log('🔥 Processing message with type:', event.data?.type);
-            
-            if (event.data.type === 'STRAVA_AUTH_SUCCESS') {
-              console.log('🔥 Strava auth success detected!');
-              clearInterval(checkClosed);
-              authWindow?.close();
-              
-              const routesData = event.data.routes || [];
-              setRoutes(routesData);
-              setAccessToken(event.data.accessToken || 'strava-token');
-              setLoading(false);
-              window.removeEventListener('message', messageHandler);
-              
-              toast({
-                title: "Connected to Strava!",
-                description: `Found ${routesData.length} routes.`
-              });
-            } else if (event.data.type === 'STRAVA_AUTH_ERROR') {
-              console.log('🔥 Strava auth error detected!');
-              clearInterval(checkClosed);
-              authWindow?.close();
-              setLoading(false);
-              window.removeEventListener('message', messageHandler);
-              
-              toast({
-                title: "Connection Failed",
-                description: event.data.error,
-                variant: "destructive"
-              });
-            } else {
-              console.log('🔥 Unknown message type or structure:', event.data);
-            }
           }
         };
 
         window.addEventListener('message', messageHandler);
-        
-        // Test that message handler is set up
-        console.log('🔥 Message handler registered, waiting for messages...');
-      } else if (data.success && data.routes) {
-        // Handle direct response with routes
-        setRoutes(data.routes);
-        setLoading(false);
-        
-        toast({
-          title: "Connected to Strava!",
-          description: `Found ${data.routes.length} routes.`
-        });
+      } else {
+        throw new Error('No auth URL received from server');
       }
     } catch (error) {
       console.error('Strava connection error:', error);
       setLoading(false);
       toast({
-        title: "Connection Failed",
-        description: "Failed to connect to Strava",
-        variant: "destructive"
+        title: "Connection failed",
+        description: error instanceof Error ? error.message : "Failed to connect to Strava",
+        variant: "destructive",
       });
     }
   };
