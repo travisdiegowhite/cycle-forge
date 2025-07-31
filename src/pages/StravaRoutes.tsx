@@ -6,7 +6,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { MapPin, Clock, TrendingUp, ArrowLeft } from "lucide-react";
 import { StravaImport } from "@/components/StravaImport";
-import { useToast } from "@/hooks/use-toast";
 
 interface StravaRoute {
   id: number;
@@ -31,77 +30,22 @@ const StravaRoutes = () => {
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
   const [importedRoutes, setImportedRoutes] = useState<StravaRoute[]>([]);
-  const { toast } = useToast();
 
-  // Handle Strava OAuth callback
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const stravaSuccess = urlParams.get('strava_success');
-    
-    console.log('StravaRoutes callback check:', {
-      url: window.location.href,
-      stravaSuccess,
-      hasParams: window.location.search.length > 0
-    });
-    
-    if (stravaSuccess === 'true') {
-      console.log('Processing Strava callback...');
-      
-      // Get routes from sessionStorage
-      const routesData = sessionStorage.getItem('strava_routes');
-      const athleteData = sessionStorage.getItem('strava_athlete');
-      
-      console.log('SessionStorage data:', {
-        routesData: routesData ? routesData.substring(0, 100) + '...' : null,
-        athleteData: athleteData ? athleteData.substring(0, 100) + '...' : null
-      });
-      
-      if (routesData) {
-        try {
-          const routes = JSON.parse(routesData);
-          const athlete = athleteData ? JSON.parse(athleteData) : null;
-          
-          console.log('Parsed data:', {
-            routesCount: routes.length,
-            athlete: athlete?.firstname || 'unknown'
-          });
-          
-          setImportedRoutes(routes);
-          
-          // Clear stored data
-          sessionStorage.removeItem('strava_routes');
-          sessionStorage.removeItem('strava_athlete');
-          sessionStorage.removeItem('strava_access_token');
-          
-          // Clean up URL
-          window.history.replaceState({}, '', '/strava-routes');
-          
-          // Show success message
-          toast({
-            title: "Connected to Strava!",
-            description: `Successfully imported ${routes.length} routes from ${athlete?.firstname || 'your'} Strava account.`,
-          });
-        } catch (error) {
-          console.error('Error parsing Strava data:', error);
-          toast({
-            title: "Import Error",
-            description: "Failed to process Strava data.",
-            variant: "destructive",
-          });
-        }
-      } else {
-        console.error('No routes data found in sessionStorage');
-      }
+    // Redirect to auth page if not authenticated
+    if (!loading && !user) {
+      navigate('/auth');
     }
-  }, [toast]);
-
-  // No authentication required for Strava import flow
+  }, [user, loading, navigate]);
 
   const handleSignOut = async () => {
     await signOut();
     navigate('/auth');
   };
 
+  const handleRouteImported = (route: StravaRoute) => {
+    setImportedRoutes(prev => [...prev, route]);
+  };
 
   const formatDistance = (distance: number) => {
     return `${(distance / 1000).toFixed(1)} km`;
@@ -128,7 +72,10 @@ const StravaRoutes = () => {
     );
   }
 
-  // Show page regardless of authentication status for Strava flow
+  // Don't render if not authenticated (will redirect)
+  if (!user) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background/95 to-background/90">
@@ -150,20 +97,18 @@ const StravaRoutes = () => {
               </p>
             </div>
           </div>
-          {user && (
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-muted-foreground">
-                Welcome, {user.email}
-              </span>
-              <Button variant="outline" onClick={handleSignOut}>
-                Sign Out
-              </Button>
-            </div>
-          )}
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-muted-foreground">
+              Welcome, {user.email}
+            </span>
+            <Button variant="outline" onClick={handleSignOut}>
+              Sign Out
+            </Button>
+          </div>
         </div>
 
         <div className="mb-6">
-          <StravaImport />
+          <StravaImport onRouteImported={handleRouteImported} />
         </div>
 
         {importedRoutes.length > 0 ? (

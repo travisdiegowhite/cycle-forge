@@ -13,6 +13,7 @@ serve(async (req) => {
   try {
     const url = new URL(req.url);
     const code = url.searchParams.get('code');
+    const action = url.searchParams.get('action');
 
     const clientId = Deno.env.get('STRAVA_CLIENT_ID');
     const clientSecret = Deno.env.get('STRAVA_CLIENT_SECRET');
@@ -25,8 +26,7 @@ serve(async (req) => {
     if (code) {
       console.log('Processing OAuth callback with code:', code);
       
-      const appOriginFromCallback = url.searchParams.get('app_origin') || 'https://8523dd48-6a5c-4647-b24a-1fd9b88b27fd.lovableproject.com';
-      const redirectUri = `https://kmyjfflvxgllibbybwbs.supabase.co/functions/v1/strava-auth?app_origin=${encodeURIComponent(appOriginFromCallback)}`;
+      const redirectUri = `https://kmyjfflvxgllibbybwbs.supabase.co/functions/v1/strava-auth`;
       console.log('Using redirect URI:', redirectUri);
       console.log('Using client ID:', clientId);
       console.log('Client secret exists:', !!clientSecret);
@@ -66,17 +66,7 @@ serve(async (req) => {
       const routes = await routesResponse.json();
       console.log('Found routes:', routes.length);
 
-      // Store auth data in URL and redirect back to app
-      const appOrigin = appOriginFromCallback;
-      const callbackUrl = new URL('/strava-routes', appOrigin);
-      
-      // Add auth data as URL parameters (encode for safety)
-      callbackUrl.searchParams.set('strava_success', 'true');
-      callbackUrl.searchParams.set('access_token', tokenData.access_token);
-      callbackUrl.searchParams.set('athlete_id', tokenData.athlete.id.toString());
-      callbackUrl.searchParams.set('routes_count', routes.length.toString());
-      
-      // Store routes data in sessionStorage via a redirect page
+      // Return HTML with JavaScript to communicate with parent window
       const html = `
         <!DOCTYPE html>
         <html>
@@ -84,18 +74,65 @@ serve(async (req) => {
           <title>Strava Auth Success</title>
         </head>
         <body>
-          <p>Authentication successful! Redirecting...</p>
+          <p>Authentication successful! Closing window...</p>
           <script>
-            // Store routes data in sessionStorage
-            const routesData = ${JSON.stringify(routes)};
-            const athleteData = ${JSON.stringify(tokenData.athlete)};
+            console.log('🔥 Popup window script running');
+            console.log('🔥 Window opener exists:', !!window.opener);
+            console.log('🔥 Document referrer:', document.referrer);
             
-            sessionStorage.setItem('strava_routes', JSON.stringify(routesData));
-            sessionStorage.setItem('strava_athlete', JSON.stringify(athleteData));
-            sessionStorage.setItem('strava_access_token', '${tokenData.access_token}');
-            
-            // Redirect to app
-            window.location.href = '${callbackUrl.toString()}';
+            if (window.opener) {
+              // Post message to all possible parent origins
+              const possibleOrigins = [
+                '${url.origin}',
+                'https://8523dd48-6a5c-4647-b24a-1fd9b88b27fd.lovableproject.com',
+                'https://lovable.dev',
+                'http://localhost:3000',
+                '*'
+              ];
+              
+              const messageData = {
+                type: 'STRAVA_AUTH_SUCCESS',
+                routes: ${JSON.stringify(routes)},
+                accessToken: '${tokenData.access_token}',
+                athlete: ${JSON.stringify(tokenData.athlete)}
+              };
+              
+              console.log('🔥 Posting message data:', messageData);
+              console.log('🔥 Routes count:', messageData.routes.length);
+              
+              // Try posting to each possible origin
+              possibleOrigins.forEach((origin, index) => {
+                try {
+                  console.log('🔥 Attempting to post to origin ' + index + ':', origin);
+                  window.opener.postMessage(messageData, origin);
+                  console.log('🔥 Successfully posted to origin ' + index + ':', origin);
+                } catch (e) {
+                  console.log('🔥 Failed to post to origin ' + index + ':', origin, e);
+                }
+              });
+              
+              // Also try posting to the referrer if available
+              if (document.referrer) {
+                try {
+                  const referrerOrigin = new URL(document.referrer).origin;
+                  console.log('🔥 Attempting to post to referrer origin:', referrerOrigin);
+                  window.opener.postMessage(messageData, referrerOrigin);
+                  console.log('🔥 Successfully posted to referrer origin:', referrerOrigin);
+                } catch (e) {
+                  console.log('🔥 Failed to post to referrer origin:', e);
+                }
+              }
+              
+              // Wait a bit before closing to ensure message is sent
+              setTimeout(() => {
+                console.log('🔥 Closing popup window');
+                window.close();
+              }, 500);
+            } else {
+              console.log('🔥 No window.opener available');
+              // Fallback for when popup blocker prevents window.opener
+              document.body.innerHTML = '<p>Authentication successful! You can close this window.</p>';
+            }
           </script>
         </body>
         </html>
@@ -106,34 +143,27 @@ serve(async (req) => {
       });
     }
 
+    // Handle route details request
+    if (action === 'get-route' && url.searchParams.get('route_id') && url.searchParams.get('access_token')) {
+      const routeId = url.searchParams.get('route_id');
+      const accessToken = url.searchParams.get('access_token');
+
+      const routeResponse = await fetch(`https://www.strava.com/api/v3/routes/${routeId}`, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
+      });
+
+      const routeData = await routeResponse.json();
+      
+      return new Response(JSON.stringify(routeData), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
 
     // Default response for initial auth
-    let appOrigin = url.searchParams.get('app_origin') || req.headers.get('referer') || 'https://8523dd48-6a5c-4647-b24a-1fd9b88b27fd.lovableproject.com';
-    
-    // For POST requests, try to get app_origin from request body
-    if (req.method === 'POST') {
-      try {
-        const body = await req.json();
-        if (body.app_origin) {
-          appOrigin = body.app_origin;
-        }
-      } catch (e) {
-        console.log('No JSON body or app_origin in body, using default');
-      }
-    }
-    
-    console.log('Generating auth URL with:', {
-      clientId,
-      appOrigin,
-      hasClientSecret: !!clientSecret
-    });
-    
-    const redirectUri = `https://kmyjfflvxgllibbybwbs.supabase.co/functions/v1/strava-auth?app_origin=${encodeURIComponent(appOrigin)}`;
-    // Try with minimal scope first - just read access
-    const authUrl = `https://www.strava.com/oauth/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&scope=read`;
-    
-    console.log('Generated auth URL:', authUrl);
-    console.log('Redirect URI:', redirectUri);
+    const redirectUri = `https://kmyjfflvxgllibbybwbs.supabase.co/functions/v1/strava-auth`;
+    const authUrl = `https://www.strava.com/oauth/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&scope=read,activity:read_all`;
     
     return new Response(JSON.stringify({ authUrl }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
