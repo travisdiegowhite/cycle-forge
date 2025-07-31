@@ -67,6 +67,7 @@ export const StravaImport: React.FC<StravaImportProps> = ({ onRouteImported }) =
 
       // Direct redirect to Strava auth (no popup)
       window.location.href = authUrl;
+      // Don't set loading to false here since we're redirecting
       
     } catch (error) {
       console.error('Error connecting to Strava:', error);
@@ -75,7 +76,6 @@ export const StravaImport: React.FC<StravaImportProps> = ({ onRouteImported }) =
         description: "An unexpected error occurred.",
         variant: "destructive",
       });
-    } finally {
       setLoading(false);
     }
   };
