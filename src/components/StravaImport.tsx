@@ -15,10 +15,13 @@ export const StravaImport: React.FC = () => {
   const connectToStrava = async () => {
     try {
       setLoading(true);
+      console.log('Starting Strava connection...');
       
       const { data, error } = await supabase.functions.invoke('strava-auth', {
         body: { app_origin: window.location.origin }
       });
+      
+      console.log('Strava auth response:', { data, error });
       
       if (error) {
         console.error('Error invoking Strava auth:', error);
@@ -27,10 +30,13 @@ export const StravaImport: React.FC = () => {
           description: "Failed to connect to Strava. Please try again.",
           variant: "destructive",
         });
+        setLoading(false);
         return;
       }
 
       const authUrl = data?.authUrl;
+      console.log('Received auth URL:', authUrl);
+      
       if (!authUrl) {
         console.error('No auth URL received:', data);
         toast({
@@ -38,10 +44,12 @@ export const StravaImport: React.FC = () => {
           description: "Strava authentication is not properly configured.",
           variant: "destructive",
         });
+        setLoading(false);
         return;
       }
 
       // Direct redirect to Strava auth (no popup)
+      console.log('Redirecting to:', authUrl);
       window.location.href = authUrl;
       // Don't set loading to false here since we're redirecting
       
