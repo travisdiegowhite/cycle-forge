@@ -1098,17 +1098,16 @@ const RouteMap: React.FC = () => {
       />
 
       {/* Map Container */}
-      <div className="flex-1 relative">
+      <div className="flex-1 flex flex-col">
         <div 
           ref={mapContainer} 
-          className={`absolute inset-0 ${routeGeometry ? 'bottom-40' : ''}`}
-          style={routeGeometry ? { bottom: '10rem' } : {}}
+          className={`flex-1 ${routeGeometry ? 'h-[calc(100%-12rem)]' : 'h-full'}`}
         />
         
         {/* Route Statistics Panel - Only show when route exists */}
         {routeGeometry && (
-          <div className="absolute bottom-0 left-0 right-0 z-10">
-            <Card className="m-4 bg-background/95 backdrop-blur-sm border-border shadow-lg">
+          <div className="h-48 border-t border-border bg-background">
+            <Card className="h-full m-4 bg-background/95 backdrop-blur-sm border-border shadow-lg">
               <div className="p-4">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
