@@ -1231,8 +1231,8 @@ const RouteMap: React.FC = () => {
           
           <div ref={mapContainer} className="absolute inset-0" />
         
-          {/* Control Panel */}
-          <div className="absolute top-4 right-4 space-y-4 z-10">
+          {/* Route Builder Tools - Top Right */}
+          <div className="absolute top-4 right-4 space-y-4 z-20">
             <Card className="p-4 shadow-card bg-background/10 backdrop-blur-md border-white/20">
               <div className="space-y-3">
                 <h2 className="font-semibold text-card-foreground flex items-center gap-2">
