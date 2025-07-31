@@ -78,10 +78,27 @@ export const StravaImport: React.FC<StravaImportProps> = ({ onRouteImported }) =
             return;
           }
           
-          console.log('🔥 Event data type:', event.data?.type);
-          console.log('🔥 Event data routes length:', event.data?.routes?.length);
+          // Check if message has routes data (regardless of type field)
+          if (event.data && event.data.routes && Array.isArray(event.data.routes)) {
+            console.log('🔥 Routes detected in message!');
+            console.log('🔥 Number of routes:', event.data.routes.length);
+            
+            clearInterval(checkClosed);
+            authWindow?.close();
+            
+            setRoutes(event.data.routes);
+            setAccessToken(event.data.accessToken || 'strava-token');
+            setLoading(false);
+            window.removeEventListener('message', messageHandler);
+            
+            toast({
+              title: "Connected to Strava!",
+              description: `Found ${event.data.routes.length} routes.`
+            });
+            return;
+          }
           
-          // Accept any message for debugging
+          // Handle specific message types
           if (event.data && typeof event.data === 'object') {
             console.log('🔥 Processing message with type:', event.data?.type);
             
@@ -90,11 +107,7 @@ export const StravaImport: React.FC<StravaImportProps> = ({ onRouteImported }) =
               clearInterval(checkClosed);
               authWindow?.close();
               
-              // The routes data should be in the routes property
               const routesData = event.data.routes || [];
-              console.log('🔥 Routes data received:', routesData);
-              console.log('🔥 Number of routes:', routesData.length);
-              
               setRoutes(routesData);
               setAccessToken(event.data.accessToken || 'strava-token');
               setLoading(false);
@@ -119,8 +132,6 @@ export const StravaImport: React.FC<StravaImportProps> = ({ onRouteImported }) =
             } else {
               console.log('🔥 Unknown message type or structure:', event.data);
             }
-          } else {
-            console.log('🔥 Invalid message data:', event.data);
           }
         };
 
