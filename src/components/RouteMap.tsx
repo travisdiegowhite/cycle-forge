@@ -1103,70 +1103,76 @@ const RouteMap: React.FC = () => {
         
         {/* Route Statistics Panel - Only show when route exists */}
         {routeGeometry && (
-          <div className="absolute top-4 right-4 z-10">
-            <Card className="p-4 shadow-card bg-background/95 backdrop-blur-sm border">
-              <div className="space-y-3">
-                <h3 className="font-medium text-card-foreground flex items-center gap-2">
-                  <Route className="h-4 w-4 text-primary" />
-                  Route Statistics
-                </h3>
+          <div className="absolute bottom-0 left-0 right-0 z-10">
+            <Card className="m-4 bg-background/95 backdrop-blur-sm border-border shadow-lg">
+              <div className="p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                    <Route className="h-5 w-5 text-primary" />
+                    Route Statistics
+                  </h3>
+                </div>
                 
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div className="text-center p-2 bg-muted/30 rounded">
-                    <div className="text-xs text-muted-foreground">Distance</div>
-                    <div className="font-medium">{routeStats.distance} {useMetric ? 'km' : 'mi'}</div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-primary">
+                      {routeStats.distance}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      {useMetric ? 'km' : 'mi'}
+                    </div>
                   </div>
-                  <div className="text-center p-2 bg-muted/30 rounded">
-                    <div className="text-xs text-muted-foreground">Duration</div>
-                    <div className="font-medium">{routeStats.duration} min</div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-primary">
+                      {routeStats.duration}
+                    </div>
+                    <div className="text-sm text-muted-foreground">minutes</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-primary">
+                      {routeStats.waypointCount}
+                    </div>
+                    <div className="text-sm text-muted-foreground">waypoints</div>
                   </div>
                   {routeStats.elevationGain !== undefined && (
-                    <>
-                      <div className="text-center p-2 bg-muted/30 rounded">
-                        <div className="text-xs text-muted-foreground">Elevation Gain</div>
-                        <div className="font-medium text-green-600">
-                          +{useMetric 
-                            ? (routeStats.elevationGain || 0) 
-                            : Math.round((routeStats.elevationGain || 0) * 3.28084)
-                          }{useMetric ? 'm' : 'ft'}
-                        </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-primary">
+                        +{useMetric 
+                          ? (routeStats.elevationGain || 0) 
+                          : Math.round((routeStats.elevationGain || 0) * 3.28084)
+                        }
                       </div>
-                      <div className="text-center p-2 bg-muted/30 rounded">
-                        <div className="text-xs text-muted-foreground">Max Elevation</div>
-                        <div className="font-medium">
-                          {useMetric 
-                            ? (routeStats.maxElevation || 0) 
-                            : Math.round((routeStats.maxElevation || 0) * 3.28084)
-                          }{useMetric ? 'm' : 'ft'}
-                        </div>
+                      <div className="text-sm text-muted-foreground">
+                        {useMetric ? 'm' : 'ft'} gain
                       </div>
-                    </>
+                    </div>
                   )}
                 </div>
 
-                {/* Elevation Profile - Compact Version */}
+                {/* Elevation Profile */}
                 {elevationProfile.length > 0 && (
-                  <div className="space-y-2">
-                    <h4 className="text-sm font-medium text-card-foreground">Elevation Profile</h4>
-                    <div className="h-20 w-full bg-muted/30 rounded-md relative overflow-hidden">
+                  <div className="border-t border-border pt-4">
+                    <h4 className="text-sm font-medium text-foreground mb-2">Elevation Profile</h4>
+                    <div className="w-full h-20 bg-muted/30 rounded">
                       <svg
                         width="100%"
-                        height="100%"
+                        height="80"
+                        className="overflow-visible"
+                        preserveAspectRatio="none"
                         viewBox="0 0 300 80"
-                        className="absolute inset-0"
                       >
                         {elevationProfile.length > 1 && (
                           <>
                             <polyline
                               fill="none"
                               stroke="hsl(var(--primary))"
-                              strokeWidth="1.5"
+                              strokeWidth="2"
                               points={elevationProfile.map((point, index) => {
                                 const x = (index / (elevationProfile.length - 1)) * 300;
                                 const minElev = Math.min(...elevationProfile.map(p => p.elevation));
                                 const maxElev = Math.max(...elevationProfile.map(p => p.elevation));
                                 const elevRange = maxElev - minElev || 1;
-                                const y = 80 - ((point.elevation - minElev) / elevRange) * 70 - 5;
+                                const y = 70 - ((point.elevation - minElev) / elevRange) * 60;
                                 return `${x},${y}`;
                               }).join(' ')}
                             />
@@ -1179,11 +1185,11 @@ const RouteMap: React.FC = () => {
                                   const minElev = Math.min(...elevationProfile.map(p => p.elevation));
                                   const maxElev = Math.max(...elevationProfile.map(p => p.elevation));
                                   const elevRange = maxElev - minElev || 1;
-                                  const y = 80 - ((point.elevation - minElev) / elevRange) * 70 - 5;
+                                  const y = 70 - ((point.elevation - minElev) / elevRange) * 60;
                                   return `${x},${y}`;
                                 }),
-                                '300,80',
-                                '0,80'
+                                '300,70',
+                                '0,70'
                               ].join(' ')}
                             />
                           </>
