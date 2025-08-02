@@ -1275,6 +1275,7 @@ const RouteMap: React.FC = () => {
                   variant={isRouteMode ? "default" : "outline"}
                   className="w-full"
                 >
+                  <Route className="h-4 w-4 mr-2" />
                   {isRouteMode ? 'Exit Route Mode' : 'Start Building Route'}
                 </Button>
 
