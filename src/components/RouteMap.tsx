@@ -166,6 +166,7 @@ const RouteMap: React.FC = () => {
 
       // Add map click handler for adding waypoints
       const clickHandler = (e: mapboxgl.MapMouseEvent) => {
+        console.log('Map clicked, route mode:', isRouteMode);
         if (!isRouteMode) return;
         
         setSelectedWaypoint(null);
@@ -177,6 +178,7 @@ const RouteMap: React.FC = () => {
           name: `Waypoint ${waypoints.length + 1}`
         };
 
+        console.log('Adding waypoint:', newWaypoint);
         setWaypoints(prev => [...prev, newWaypoint]);
       };
       
@@ -543,9 +545,14 @@ const RouteMap: React.FC = () => {
   // Expose toggle function for MapToolbar
   useEffect(() => {
     (window as any).toggleRouteMode = () => {
-      setIsRouteMode(prev => !prev);
+      console.log('Toggle route mode called, current state:', isRouteMode);
+      setIsRouteMode(prev => {
+        const newState = !prev;
+        console.log('Route mode changed to:', newState);
+        return newState;
+      });
     };
-  }, []);
+  }, [isRouteMode]);
 
   // Show loading state while getting token
   if (isLoadingToken) {
