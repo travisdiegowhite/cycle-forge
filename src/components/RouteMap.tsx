@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
@@ -7,7 +8,6 @@ import { Trash2 } from 'lucide-react';
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import { decodePolyline, calculateBounds } from '@/utils/polylineDecoder';
 
 interface Waypoint {
   id: string;
@@ -39,8 +39,6 @@ const RouteMap: React.FC<RouteMapProps> = ({ onToggleRouteMode }) => {
   const { toast } = useToast();
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
-  const isRouteModeRef = useRef(false);
-  const isDraggingRef = useRef(false);
   const [waypoints, setWaypoints] = useState<Waypoint[]>([]);
   const [routeGeometry, setRouteGeometry] = useState<any>(null);
   const [routeStats, setRouteStats] = useState<RouteStats>({ distance: 0, duration: 0, waypointCount: 0 });
@@ -51,35 +49,23 @@ const RouteMap: React.FC<RouteMapProps> = ({ onToggleRouteMode }) => {
   const [isLoadingToken, setIsLoadingToken] = useState(true);
   const [useMetric, setUseMetric] = useState(true);
   const [currentLocation, setCurrentLocation] = useState<[number, number] | null>(null);
-  const [isSnapping, setIsSnapping] = useState(false);
-  const [savedRoutes, setSavedRoutes] = useState<any[]>([]);
-  const [stravaRoutes, setStravaRoutes] = useState<any[]>([]);
-  const [visibleStravaRoutes, setVisibleStravaRoutes] = useState<Set<number>>(new Set());
+  const [mapInitialized, setMapInitialized] = useState(false);
 
   // Get Mapbox token from edge function
   useEffect(() => {
     const getMapboxToken = async () => {
-      console.log('getMapboxToken called', { 
-        hasSession: !!session, 
-        hasAccessToken: !!session?.access_token,
-        isLoadingToken 
-      });
-      
       if (!session?.access_token) {
-        console.log('No session or access token, setting loading to false');
+        console.log('No session or access token available');
         setIsLoadingToken(false);
         return;
       }
 
       try {
-        console.log('Calling get-mapbox-token function...');
         const { data, error } = await supabase.functions.invoke('get-mapbox-token', {
           headers: {
             Authorization: `Bearer ${session.access_token}`,
           },
         });
-
-        console.log('get-mapbox-token response:', { data, error });
 
         if (error) {
           console.error('Error getting Mapbox token:', error);
@@ -92,10 +78,7 @@ const RouteMap: React.FC<RouteMapProps> = ({ onToggleRouteMode }) => {
         }
 
         if (data?.token) {
-          console.log('Mapbox token received, setting token');
           setMapboxToken(data.token);
-        } else {
-          console.log('No token in response data:', data);
         }
       } catch (error) {
         console.error('Error calling get-mapbox-token function:', error);
@@ -105,38 +88,12 @@ const RouteMap: React.FC<RouteMapProps> = ({ onToggleRouteMode }) => {
           variant: "destructive",
         });
       } finally {
-        console.log('Setting isLoadingToken to false');
         setIsLoadingToken(false);
       }
     };
 
     getMapboxToken();
   }, [session, toast]);
-
-  // Load saved routes from Supabase
-  useEffect(() => {
-    const loadSavedRoutes = async () => {
-      if (!session?.user) return;
-
-      try {
-        const { data, error } = await supabase
-          .from('routes')
-          .select('*')
-          .order('created_at', { ascending: false });
-
-        if (error) {
-          console.error('Error loading routes:', error);
-          return;
-        }
-
-        setSavedRoutes(data || []);
-      } catch (error) {
-        console.error('Error loading routes:', error);
-      }
-    };
-
-    loadSavedRoutes();
-  }, [session]);
 
   // Get user's current location
   useEffect(() => {
@@ -149,7 +106,6 @@ const RouteMap: React.FC<RouteMapProps> = ({ onToggleRouteMode }) => {
               position.coords.latitude
             ];
             setCurrentLocation(coords);
-            console.log('Current location:', coords);
           },
           (error) => {
             console.warn('Error getting location:', error);
@@ -169,112 +125,53 @@ const RouteMap: React.FC<RouteMapProps> = ({ onToggleRouteMode }) => {
 
   // Initialize map
   useEffect(() => {
-    if (!mapContainer.current || !mapboxToken || !currentLocation) return;
+    if (!mapContainer.current || !mapboxToken || !currentLocation || mapInitialized) {
+      return;
+    }
 
-    console.log('Initializing map with secure token and location:', currentLocation);
-    mapboxgl.accessToken = mapboxToken;
+    console.log('Initializing map with token and location:', currentLocation);
     
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/streets-v12',
-      center: currentLocation, // Use current location
-      zoom: 14, // Zoom in more for current location
-      pitch: 0,
-      bearing: 0
-    });
-
-    map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
-
-    // Add map click handler for adding waypoints
-    const clickHandler = (e: mapboxgl.MapMouseEvent) => {
-      // Don't add waypoints if we're dragging
-      if (isDraggingRef.current) {
-        return;
-      }
+    try {
+      mapboxgl.accessToken = mapboxToken;
       
-      console.log('Map clicked:', { 
-        isRouteMode: isRouteModeRef.current, 
-        coordinates: [e.lngLat.lng, e.lngLat.lat],
-        currentWaypointCount: waypoints.length 
-      });
-      handleMapClick(e);
-    };
-    
-    map.current.on('click', clickHandler);
-
-    // Add sources and layers when map loads
-    map.current.on('load', () => {
-      console.log('Map loaded successfully');
-      
-      if (!map.current) return;
-      // Add waypoints source
-      map.current!.addSource('waypoints', {
-        type: 'geojson',
-        data: {
-          type: 'FeatureCollection',
-          features: []
-        }
+      map.current = new mapboxgl.Map({
+        container: mapContainer.current,
+        style: 'mapbox://styles/mapbox/streets-v12',
+        center: currentLocation,
+        zoom: 14,
+        pitch: 0,
+        bearing: 0
       });
 
-      // Add route source
-      map.current!.addSource('route', {
-        type: 'geojson',
-        data: {
-          type: 'FeatureCollection',
-          features: []
-        }
-      });
+      map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
 
-      // Add waypoint layer - make it interactive
-      map.current!.addLayer({
-        id: 'waypoints',
-        type: 'circle',
-        source: 'waypoints',
-        paint: {
-          'circle-radius': [
-            'case',
-            ['==', ['get', 'id'], selectedWaypoint || ''],
-            12, // Larger when selected
-            8   // Normal size
-          ],
-          'circle-color': [
-            'case',
-            ['==', ['get', 'id'], selectedWaypoint || ''],
-            'hsl(25, 95%, 53%)', // Orange when selected
-            'hsl(45, 93%, 58%)'  // Yellow normally
-          ],
-          'circle-stroke-width': 3,
-          'circle-stroke-color': '#ffffff'
-        }
-      });
+      // Add map click handler for adding waypoints
+      const clickHandler = (e: mapboxgl.MapMouseEvent) => {
+        if (!isRouteMode) return;
+        
+        // Clear any selected waypoint when adding a new one
+        setSelectedWaypoint(null);
 
-      // Add waypoint numbers
-      map.current!.addLayer({
-        id: 'waypoint-labels',
-        type: 'symbol',
-        source: 'waypoints',
-        layout: {
-          'text-field': ['get', 'number'],
-          'text-size': 12,
-          'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold']
-        },
-        paint: {
-          'text-color': '#ffffff'
-        }
-      });
+        const coordinates: [number, number] = [e.lngLat.lng, e.lngLat.lat];
+        const newWaypoint: Waypoint = {
+          id: `waypoint-${Date.now()}`,
+          coordinates,
+          name: `Waypoint ${waypoints.length + 1}`
+        };
 
-      // Add route layers for different surface types
-      const surfaceColors = {
-        'paved': 'hsl(142, 76%, 36%)',      // Green for paved roads
-        'unpaved': 'hsl(30, 100%, 50%)',   // Orange for unpaved/gravel
-        'path': 'hsl(45, 93%, 58%)',       // Yellow for paths/trails
-        'ferry': 'hsl(200, 100%, 50%)',    // Blue for ferry routes
-        'default': 'hsl(142, 76%, 36%)'    // Default green
+        setWaypoints(prev => [...prev, newWaypoint]);
       };
+      
+      map.current.on('click', clickHandler);
 
-      // Add sources for each surface type
-      Object.keys(surfaceColors).forEach(surfaceType => {
-        map.current!.addSource(`route-${surfaceType}`, {
+      // Add sources and layers when map loads
+      map.current.on('load', () => {
+        console.log('Map loaded successfully');
+        
+        if (!map.current) return;
+        
+        // Add waypoints source
+        map.current.addSource('waypoints', {
           type: 'geojson',
           data: {
             type: 'FeatureCollection',
@@ -282,116 +179,117 @@ const RouteMap: React.FC<RouteMapProps> = ({ onToggleRouteMode }) => {
           }
         });
 
-        map.current!.addLayer({
-          id: `route-${surfaceType}`,
-          type: 'line',
-          source: `route-${surfaceType}`,
-          layout: {
-            'line-join': 'round',
-            'line-cap': 'round'
-          },
+        // Add waypoint layer
+        map.current.addLayer({
+          id: 'waypoints',
+          type: 'circle',
+          source: 'waypoints',
           paint: {
-            'line-color': surfaceColors[surfaceType as keyof typeof surfaceColors],
-            'line-width': 4,
-            'line-opacity': 0.8
+            'circle-radius': [
+              'case',
+              ['==', ['get', 'id'], selectedWaypoint || ''],
+              12,
+              8
+            ],
+            'circle-color': [
+              'case',
+              ['==', ['get', 'id'], selectedWaypoint || ''],
+              'hsl(25, 95%, 53%)',
+              'hsl(45, 93%, 58%)'
+            ],
+            'circle-stroke-width': 3,
+            'circle-stroke-color': '#ffffff'
           }
         });
-      });
 
-      // Add waypoint click and drag handlers
-      map.current.on('click', 'waypoints', (e) => {
-        if (e.features && e.features[0]) {
-          const waypointId = e.features[0].properties?.id;
-          if (waypointId) {
-            setSelectedWaypoint(selectedWaypoint === waypointId ? null : waypointId);
-            console.log('Waypoint selected:', waypointId);
+        // Add waypoint numbers
+        map.current.addLayer({
+          id: 'waypoint-labels',
+          type: 'symbol',
+          source: 'waypoints',
+          layout: {
+            'text-field': ['get', 'number'],
+            'text-size': 12,
+            'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold']
+          },
+          paint: {
+            'text-color': '#ffffff'
           }
-        }
-        e.preventDefault();
-      });
+        });
 
-      // Make waypoints draggable
-      map.current.on('mousedown', 'waypoints', (e) => {
-        if (e.features && e.features[0]) {
-          const waypointId = e.features[0].properties?.id;
-          setSelectedWaypoint(waypointId);
-          
-          // Prevent the default map drag behavior
+        // Add route layers for different surface types
+        const surfaceColors = {
+          'paved': 'hsl(142, 76%, 36%)',
+          'unpaved': 'hsl(30, 100%, 50%)',
+          'path': 'hsl(45, 93%, 58%)',
+          'ferry': 'hsl(200, 100%, 50%)',
+          'default': 'hsl(142, 76%, 36%)'
+        };
+
+        Object.keys(surfaceColors).forEach(surfaceType => {
+          map.current!.addSource(`route-${surfaceType}`, {
+            type: 'geojson',
+            data: {
+              type: 'FeatureCollection',
+              features: []
+            }
+          });
+
+          map.current!.addLayer({
+            id: `route-${surfaceType}`,
+            type: 'line',
+            source: `route-${surfaceType}`,
+            layout: {
+              'line-join': 'round',
+              'line-cap': 'round'
+            },
+            paint: {
+              'line-color': surfaceColors[surfaceType as keyof typeof surfaceColors],
+              'line-width': 4,
+              'line-opacity': 0.8
+            }
+          });
+        });
+
+        // Add waypoint interaction handlers
+        map.current.on('click', 'waypoints', (e) => {
+          if (e.features && e.features[0]) {
+            const waypointId = e.features[0].properties?.id;
+            if (waypointId) {
+              setSelectedWaypoint(selectedWaypoint === waypointId ? null : waypointId);
+            }
+          }
           e.preventDefault();
-          
-          map.current!.getCanvas().style.cursor = 'grab';
-          isDraggingRef.current = true;
+        });
 
-          const onMouseMove = (e: mapboxgl.MapMouseEvent) => {
-            if (!isDraggingRef.current) return;
-            
-            map.current!.getCanvas().style.cursor = 'grabbing';
-            
-            // Update waypoint position
-            setWaypoints(prev => prev.map(wp => 
-              wp.id === waypointId 
-                ? { ...wp, coordinates: [e.lngLat.lng, e.lngLat.lat] as [number, number] }
-                : wp
-            ));
-          };
+        map.current.on('mouseenter', 'waypoints', () => {
+          map.current!.getCanvas().style.cursor = 'pointer';
+        });
 
-          const onMouseUp = () => {
-            isDraggingRef.current = false;
-            map.current!.getCanvas().style.cursor = '';
-            map.current!.off('mousemove', onMouseMove);
-            map.current!.off('mouseup', onMouseUp);
-          };
+        map.current.on('mouseleave', 'waypoints', () => {
+          map.current!.getCanvas().style.cursor = '';
+        });
 
-          map.current!.on('mousemove', onMouseMove);
-          map.current!.on('mouseup', onMouseUp);
-        }
+        setMapInitialized(true);
       });
 
-      // Change cursor on waypoint hover
-      map.current.on('mouseenter', 'waypoints', () => {
-        map.current!.getCanvas().style.cursor = 'pointer';
+    } catch (error) {
+      console.error('Error initializing map:', error);
+      toast({
+        title: "Map Error",
+        description: "Failed to initialize map. Please refresh the page.",
+        variant: "destructive",
       });
-
-      map.current.on('mouseleave', 'waypoints', () => {
-        map.current!.getCanvas().style.cursor = '';
-      });
-    });
-
-    return () => {
-      map.current?.remove();
-    };
-  }, [mapboxToken, currentLocation]);
-
-
-  const handleMapClick = useCallback((e: mapboxgl.MapMouseEvent) => {
-    console.log('handleMapClick called:', { 
-      isRouteMode: isRouteModeRef.current, 
-      waypointCount: waypoints.length,
-      coordinates: [e.lngLat.lng, e.lngLat.lat]
-    });
-    
-    if (!isRouteModeRef.current) {
-      console.log('Not in route mode, ignoring click');
-      return;
     }
 
-    // Clear any selected waypoint when adding a new one
-    setSelectedWaypoint(null);
-
-    const coordinates: [number, number] = [e.lngLat.lng, e.lngLat.lat];
-    const newWaypoint: Waypoint = {
-      id: `waypoint-${Date.now()}`,
-      coordinates,
-      name: `Waypoint ${waypoints.length + 1}`
+    return () => {
+      if (map.current) {
+        map.current.remove();
+        map.current = null;
+        setMapInitialized(false);
+      }
     };
-
-    console.log('Adding new waypoint:', newWaypoint);
-    setWaypoints(prev => {
-      const updated = [...prev, newWaypoint];
-      console.log('Updated waypoints:', updated);
-      return updated;
-    });
-  }, [waypoints.length]);
+  }, [mapboxToken, currentLocation, mapInitialized, isRouteMode, selectedWaypoint, waypoints.length, toast]);
 
   const generateRoute = useCallback(async () => {
     if (waypoints.length < 2 || !mapboxToken) return;
@@ -399,37 +297,23 @@ const RouteMap: React.FC<RouteMapProps> = ({ onToggleRouteMode }) => {
     const coordinates = waypoints.map(w => w.coordinates.join(',')).join(';');
     
     try {
-      console.log('Fetching route for coordinates:', coordinates);
       const response = await fetch(
         `https://api.mapbox.com/directions/v5/mapbox/cycling/${coordinates}?steps=true&geometries=geojson&overview=full&annotations=maxspeed,duration,distance&access_token=${mapboxToken}`
       );
       
-      console.log('Route response status:', response.status);
-      
       const data = await response.json();
-      console.log('Route API response:', { 
-        status: response.status, 
-        hasRoutes: !!data.routes, 
-        routeCount: data.routes?.length || 0,
-        firstRoute: data.routes?.[0] ? { hasGeometry: !!data.routes[0].geometry, hasLegs: !!data.routes[0].legs } : null
-      });
       
       if (data.routes && data.routes[0]) {
         const route = data.routes[0];
-        console.log('Processing route geometry:', { 
-          hasGeometry: !!route.geometry, 
-          coordinateCount: route.geometry?.coordinates?.length || 0 
-        });
         setRouteGeometry(route.geometry);
         const distanceInKm = route.distance / 1000;
         const distance = useMetric 
           ? Math.round(distanceInKm * 10) / 10
-          : Math.round(distanceInKm * 0.621371 * 10) / 10; // Convert to miles
+          : Math.round(distanceInKm * 0.621371 * 10) / 10;
 
-        // Set initial route stats
         setRouteStats({
           distance,
-          duration: Math.round(route.duration / 60), // minutes
+          duration: Math.round(route.duration / 60),
           waypointCount: waypoints.length,
           elevationGain: 0,
           elevationLoss: 0,
@@ -439,9 +323,6 @@ const RouteMap: React.FC<RouteMapProps> = ({ onToggleRouteMode }) => {
 
         // Get elevation data for the route
         await getElevationProfile(route.geometry.coordinates);
-        
-        // Automatically snap waypoints to the route
-        snapWaypointsToRoute(route.geometry);
 
         // Process route segments by surface type
         const surfaceSegments = {
@@ -457,7 +338,6 @@ const RouteMap: React.FC<RouteMapProps> = ({ onToggleRouteMode }) => {
             leg.steps.forEach((step: any) => {
               let surfaceType = 'default';
               
-              // Determine surface type based on road class and maneuver type
               if (step.maneuver?.modifier === 'ferry') {
                 surfaceType = 'ferry';
               } else if (step.intersections && step.intersections[0]?.classes) {
@@ -470,14 +350,12 @@ const RouteMap: React.FC<RouteMapProps> = ({ onToggleRouteMode }) => {
                   surfaceType = 'paved';
                 }
               } else {
-                // Fallback: use road name/type hints
                 const name = step.name?.toLowerCase() || '';
-                const ref = step.ref?.toLowerCase() || '';
                 if (name.includes('trail') || name.includes('path') || name.includes('cycleway')) {
                   surfaceType = 'path';
                 } else if (name.includes('track') || name.includes('service') || name.includes('unpaved')) {
                   surfaceType = 'unpaved';
-                } else if (ref || name.includes('highway') || name.includes('street') || name.includes('road')) {
+                } else if (name.includes('highway') || name.includes('street') || name.includes('road')) {
                   surfaceType = 'paved';
                 }
               }
@@ -496,7 +374,6 @@ const RouteMap: React.FC<RouteMapProps> = ({ onToggleRouteMode }) => {
             });
           });
         } else {
-          // Fallback: treat entire route as default surface
           surfaceSegments.default.push({
             type: 'Feature',
             geometry: route.geometry,
@@ -504,24 +381,16 @@ const RouteMap: React.FC<RouteMapProps> = ({ onToggleRouteMode }) => {
           });
         }
 
-         // Update each surface layer on map
-         console.log('Surface segments to render:', Object.keys(surfaceSegments).map(type => ({
-           type,
-           featureCount: surfaceSegments[type as keyof typeof surfaceSegments].length
-         })));
-         
-         Object.keys(surfaceSegments).forEach(surfaceType => {
-           if (map.current && map.current.getSource(`route-${surfaceType}`)) {
-             const features = surfaceSegments[surfaceType as keyof typeof surfaceSegments];
-             console.log(`Setting ${features.length} features for surface type: ${surfaceType}`);
-             (map.current.getSource(`route-${surfaceType}`) as mapboxgl.GeoJSONSource).setData({
-               type: 'FeatureCollection',
-               features: features
-             });
-           } else {
-             console.warn(`Route source route-${surfaceType} not found on map`);
-           }
-         });
+        // Update each surface layer on map
+        Object.keys(surfaceSegments).forEach(surfaceType => {
+          if (map.current && map.current.getSource(`route-${surfaceType}`)) {
+            const features = surfaceSegments[surfaceType as keyof typeof surfaceSegments];
+            (map.current.getSource(`route-${surfaceType}`) as mapboxgl.GeoJSONSource).setData({
+              type: 'FeatureCollection',
+              features: features
+            });
+          }
+        });
       }
     } catch (error) {
       console.error('Error generating route:', error);
@@ -533,44 +402,9 @@ const RouteMap: React.FC<RouteMapProps> = ({ onToggleRouteMode }) => {
     }
   }, [waypoints, mapboxToken, useMetric, toast]);
 
-  // Function to snap waypoints to the route
-  const snapWaypointsToRoute = useCallback((routeGeometry: any) => {
-    if (!routeGeometry || !routeGeometry.coordinates || isSnapping) return;
-    
-    setIsSnapping(true);
-    const routeCoords = routeGeometry.coordinates;
-    
-    setWaypoints(prev => prev.map(waypoint => {
-      let closestPoint = waypoint.coordinates;
-      let minDistance = Infinity;
-      
-      // Find the closest point on the route to this waypoint
-      for (const coord of routeCoords) {
-        const distance = calculateDistance(
-          [waypoint.coordinates[1], waypoint.coordinates[0]], 
-          [coord[1], coord[0]]
-        );
-        
-        if (distance < minDistance) {
-          minDistance = distance;
-          closestPoint = [coord[0], coord[1]] as [number, number];
-        }
-      }
-      
-      return {
-        ...waypoint,
-        coordinates: closestPoint
-      };
-    }));
-    
-    // Reset snapping flag after a short delay
-    setTimeout(() => setIsSnapping(false), 100);
-  }, [isSnapping]);
-
   // Get elevation profile using Open Elevation API
   const getElevationProfile = async (coordinates: number[][]) => {
     try {
-      // Sample coordinates along the route (max 100 points to avoid API limits)
       const maxPoints = 100;
       const step = Math.max(1, Math.floor(coordinates.length / maxPoints));
       const sampledCoords = coordinates.filter((_, index) => index % step === 0);
@@ -601,7 +435,6 @@ const RouteMap: React.FC<RouteMapProps> = ({ onToggleRouteMode }) => {
         
         setElevationProfile(profile);
         
-        // Calculate elevation statistics
         const elevations = profile.map(p => p.elevation);
         const maxElevation = Math.max(...elevations);
         const minElevation = Math.min(...elevations);
@@ -631,9 +464,8 @@ const RouteMap: React.FC<RouteMapProps> = ({ onToggleRouteMode }) => {
     }
   };
 
-  // Calculate distance between two coordinates (Haversine formula)
   const calculateDistance = (coord1: [number, number], coord2: [number, number]) => {
-    const R = 6371; // Earth's radius in km
+    const R = 6371;
     const dLat = (coord2[0] - coord1[0]) * Math.PI / 180;
     const dLon = (coord2[1] - coord1[1]) * Math.PI / 180;
     const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
@@ -645,11 +477,7 @@ const RouteMap: React.FC<RouteMapProps> = ({ onToggleRouteMode }) => {
 
   // Update waypoints on map
   useEffect(() => {
-    console.log('Waypoints updated:', waypoints);
-    if (!map.current || !map.current.getSource('waypoints')) {
-      console.log('Map or waypoints source not ready');
-      return;
-    }
+    if (!map.current || !map.current.getSource('waypoints') || !mapInitialized) return;
 
     const waypointFeatures = waypoints.map((waypoint, index) => ({
       type: 'Feature' as const,
@@ -664,51 +492,19 @@ const RouteMap: React.FC<RouteMapProps> = ({ onToggleRouteMode }) => {
       }
     }));
 
-    console.log('Setting waypoint features on map:', waypointFeatures);
     (map.current.getSource('waypoints') as mapboxgl.GeoJSONSource).setData({
       type: 'FeatureCollection',
       features: waypointFeatures
     });
 
-    // Generate route if we have 2+ waypoints and we're not currently snapping
-    if (waypoints.length >= 2 && !isSnapping) {
-      console.log('Generating route for', waypoints.length, 'waypoints');
+    if (waypoints.length >= 2) {
       generateRoute();
-    } else {
-      console.log('Clearing route - insufficient waypoints or currently snapping');
-      if (waypoints.length < 2) {
-        clearRoute();
-      }
+    } else if (waypoints.length < 2) {
+      clearRoute();
     }
-  }, [waypoints, generateRoute, isSnapping]);
-
-  // Update waypoint styling when selection changes
-  useEffect(() => {
-    if (!map.current || !map.current.getLayer('waypoints')) return;
-
-    map.current.setPaintProperty('waypoints', 'circle-radius', [
-      'case',
-      ['==', ['get', 'id'], selectedWaypoint || ''],
-      12, // Larger when selected
-      8   // Normal size
-    ]);
-
-    map.current.setPaintProperty('waypoints', 'circle-color', [
-      'case',
-      ['==', ['get', 'id'], selectedWaypoint || ''],
-      'hsl(25, 95%, 53%)', // Orange when selected
-      'hsl(45, 93%, 58%)'  // Yellow normally
-    ]);
-  }, [selectedWaypoint]);
-
-  // Update isRouteModeRef when isRouteMode changes
-  useEffect(() => {
-    isRouteModeRef.current = isRouteMode;
-    console.log('Route mode changed:', isRouteMode);
-  }, [isRouteMode]);
+  }, [waypoints, generateRoute, mapInitialized]);
 
   const clearRoute = () => {
-    // Clear all surface-specific route layers
     const surfaceTypes = ['paved', 'unpaved', 'path', 'ferry', 'default'];
     surfaceTypes.forEach(surfaceType => {
       if (map.current && map.current.getSource(`route-${surfaceType}`)) {
@@ -740,88 +536,10 @@ const RouteMap: React.FC<RouteMapProps> = ({ onToggleRouteMode }) => {
     }
   }, [onToggleRouteMode]);
 
-
-  const handleStravaRouteImported = (routeData: any) => {
-    setStravaRoutes(prev => [...prev, routeData]);
-  };
-
-  const handleStravaRouteToggle = (routeId: number) => {
-    setVisibleStravaRoutes(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(routeId)) {
-        newSet.delete(routeId);
-        removeStravaRouteFromMap(routeId);
-      } else {
-        newSet.add(routeId);
-        addStravaRouteToMap(routeId);
-      }
-      return newSet;
-    });
-  };
-
-  const handleStravaRouteFocus = (routeId: number) => {
-    const route = stravaRoutes.find(r => r.id === routeId);
-    if (route && route.map?.summary_polyline && map.current) {
-      const coordinates = decodePolyline(route.map.summary_polyline);
-      const bounds = calculateBounds(coordinates);
-      
-      map.current.fitBounds([bounds[0], bounds[1]], { padding: 50 });
-    }
-  };
-
-  const addStravaRouteToMap = (routeId: number) => {
-    const route = stravaRoutes.find(r => r.id === routeId);
-    if (!route || !route.map?.summary_polyline || !map.current) return;
-
-    const coordinates = decodePolyline(route.map.summary_polyline);
-    
-    map.current.addSource(`strava-route-${routeId}`, {
-      type: 'geojson',
-      data: {
-        type: 'Feature',
-        properties: { id: routeId, name: route.name },
-        geometry: {
-          type: 'LineString',
-          coordinates
-        }
-      }
-    });
-
-    map.current.addLayer({
-      id: `strava-route-${routeId}`,
-      type: 'line',
-      source: `strava-route-${routeId}`,
-      layout: {
-        'line-join': 'round',
-        'line-cap': 'round'
-      },
-      paint: {
-        'line-color': 'hsl(210, 100%, 50%)',
-        'line-width': 3,
-        'line-opacity': 0.7
-      }
-    });
-  };
-
-  const removeStravaRouteFromMap = (routeId: number) => {
-    if (!map.current) return;
-
-    const sourceId = `strava-route-${routeId}`;
-    
-    if (map.current.getLayer(sourceId)) {
-      map.current.removeLayer(sourceId);
-    }
-    if (map.current.getSource(sourceId)) {
-      map.current.removeSource(sourceId);
-    }
-  };
-
-
   // Show loading state while getting token
   if (isLoadingToken) {
-    console.log('Still loading token...', { isLoadingToken, session: !!session });
     return (
-      <div className="relative w-full h-[600px] bg-muted rounded-lg flex items-center justify-center">
+      <div className="relative w-full h-screen bg-muted rounded-lg flex items-center justify-center">
         <div className="text-center">
           <div className="animate-pulse text-lg text-muted-foreground mb-2">Loading map...</div>
           <div className="text-sm text-muted-foreground">Initializing secure connection</div>
@@ -832,9 +550,8 @@ const RouteMap: React.FC<RouteMapProps> = ({ onToggleRouteMode }) => {
 
   // Show error state if no token
   if (!mapboxToken) {
-    console.log('No mapbox token available', { mapboxToken, isLoadingToken, session: !!session });
     return (
-      <div className="relative w-full h-[600px] bg-muted rounded-lg flex items-center justify-center">
+      <div className="relative w-full h-screen bg-muted rounded-lg flex items-center justify-center">
         <div className="text-center">
           <div className="text-lg text-foreground mb-2">Map Unavailable</div>
           <div className="text-sm text-muted-foreground">Please contact support if this persists</div>
@@ -939,6 +656,16 @@ const RouteMap: React.FC<RouteMapProps> = ({ onToggleRouteMode }) => {
                 </div>
               ))}
             </div>
+            {waypoints.length > 0 && (
+              <Button
+                onClick={clearAllWaypoints}
+                variant="outline"
+                size="sm"
+                className="w-full mt-3"
+              >
+                Clear All Waypoints
+              </Button>
+            )}
           </Card>
         </div>
       )}
