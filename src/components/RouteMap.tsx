@@ -7,6 +7,7 @@ import { Input } from './ui/input';
 import { MapPin, Route, Trash2, Download, Search, Navigation, Save, FolderOpen } from 'lucide-react';
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
+import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { supabase } from "@/integrations/supabase/client";
 import { StravaImport } from './StravaImport';
@@ -1240,16 +1241,21 @@ const RouteMap: React.FC = () => {
                   Route Builder
                 </h2>
                 
-                <div className="space-y-2">
-                  <Button
-                    onClick={goToCurrentLocation}
-                    variant="outline"
-                    size="sm"
-                    className="w-full"
-                  >
-                    <Navigation className="h-4 w-4 mr-2" />
-                    Go to My Location
-                  </Button>
+                <div className="flex flex-wrap gap-2 justify-center">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        onClick={goToCurrentLocation}
+                        variant="outline"
+                        size="icon"
+                      >
+                        <Navigation className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Go to My Location</p>
+                    </TooltipContent>
+                  </Tooltip>
                   
                   <StravaImport onRouteImported={handleStravaRouteImported} />
                   
@@ -1264,20 +1270,26 @@ const RouteMap: React.FC = () => {
                   
                 </div>
                 
-                <Button
-                  onClick={() => {
-                    console.log('Route mode button clicked, current state:', isRouteMode);
-                    const newRouteMode = !isRouteMode;
-                    setIsRouteMode(newRouteMode);
-                    isRouteModeRef.current = newRouteMode;
-                    console.log('Route mode will be:', newRouteMode);
-                  }}
-                  variant={isRouteMode ? "default" : "outline"}
-                  className="w-full"
-                >
-                  <Route className="h-4 w-4 mr-2" />
-                  {isRouteMode ? 'Exit Route Mode' : 'Start Building Route'}
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      onClick={() => {
+                        console.log('Route mode button clicked, current state:', isRouteMode);
+                        const newRouteMode = !isRouteMode;
+                        setIsRouteMode(newRouteMode);
+                        isRouteModeRef.current = newRouteMode;
+                        console.log('Route mode will be:', newRouteMode);
+                      }}
+                      variant={isRouteMode ? "default" : "outline"}
+                      size="icon"
+                    >
+                      <Route className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{isRouteMode ? 'Exit Route Mode' : 'Start Building Route'}</p>
+                  </TooltipContent>
+                </Tooltip>
 
                 {isRouteMode && (
                   <p className="text-xs text-muted-foreground">
@@ -1288,14 +1300,19 @@ const RouteMap: React.FC = () => {
                 {/* Load Route - Always Available */}
                 <Dialog open={showLoadDialog} onOpenChange={setShowLoadDialog}>
                   <DialogTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full"
-                    >
-                      <FolderOpen className="h-3 w-3 mr-1" />
-                      Load Saved Route
-                    </Button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                        >
+                          <FolderOpen className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Load Saved Route</p>
+                      </TooltipContent>
+                    </Tooltip>
                   </DialogTrigger>
                   <DialogContent>
                     <DialogHeader>
@@ -1336,28 +1353,38 @@ const RouteMap: React.FC = () => {
 
                 {waypoints.length > 0 && (
                   <div className="space-y-2">
-                    <Button
-                      onClick={clearAllWaypoints}
-                      variant="outline"
-                      size="sm"
-                      className="w-full"
-                    >
-                      <Trash2 className="h-3 w-3 mr-1" />
-                      Clear All
-                    </Button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          onClick={clearAllWaypoints}
+                          variant="outline"
+                          size="icon"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Clear All</p>
+                      </TooltipContent>
+                    </Tooltip>
                     
                   {routeGeometry && (
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 justify-center">
                       <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
                         <DialogTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="flex-1"
-                          >
-                            <Save className="h-3 w-3 mr-1" />
-                            Save
-                          </Button>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="icon"
+                              >
+                                <Save className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Save</p>
+                            </TooltipContent>
+                          </Tooltip>
                         </DialogTrigger>
                         <DialogContent>
                           <DialogHeader>
@@ -1381,15 +1408,20 @@ const RouteMap: React.FC = () => {
                         </DialogContent>
                       </Dialog>
 
-                      <Button
-                        onClick={exportRoute}
-                        variant="outline"
-                        size="sm"
-                        className="flex-1"
-                      >
-                        <Download className="h-3 w-3 mr-1" />
-                        Export
-                      </Button>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            onClick={exportRoute}
+                            variant="outline"
+                            size="icon"
+                          >
+                            <Download className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Export</p>
+                        </TooltipContent>
+                      </Tooltip>
                     </div>
                   )}
                   </div>
