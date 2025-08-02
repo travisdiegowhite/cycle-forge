@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
@@ -30,11 +29,7 @@ interface ElevationPoint {
   elevation: number;
 }
 
-interface RouteMapProps {
-  onToggleRouteMode?: () => void;
-}
-
-const RouteMap: React.FC<RouteMapProps> = ({ onToggleRouteMode }) => {
+const RouteMap: React.FC = () => {
   const { session } = useAuth();
   const { toast } = useToast();
   const mapContainer = useRef<HTMLDivElement>(null);
@@ -49,7 +44,6 @@ const RouteMap: React.FC<RouteMapProps> = ({ onToggleRouteMode }) => {
   const [isLoadingToken, setIsLoadingToken] = useState(true);
   const [useMetric, setUseMetric] = useState(true);
   const [currentLocation, setCurrentLocation] = useState<[number, number] | null>(null);
-  const [mapInitialized, setMapInitialized] = useState(false);
 
   // Get Mapbox token from edge function
   useEffect(() => {
@@ -155,7 +149,6 @@ const RouteMap: React.FC<RouteMapProps> = ({ onToggleRouteMode }) => {
       const clickHandler = (e: mapboxgl.MapMouseEvent) => {
         if (!isRouteMode) return;
         
-        // Clear any selected waypoint when adding a new one
         setSelectedWaypoint(null);
 
         const coordinates: [number, number] = [e.lngLat.lng, e.lngLat.lat];
@@ -275,8 +268,6 @@ const RouteMap: React.FC<RouteMapProps> = ({ onToggleRouteMode }) => {
         map.current.on('mouseleave', 'waypoints', () => {
           map.current!.getCanvas().style.cursor = '';
         });
-
-        setMapInitialized(true);
       });
 
     } catch (error) {
@@ -482,7 +473,7 @@ const RouteMap: React.FC<RouteMapProps> = ({ onToggleRouteMode }) => {
 
   // Update waypoints on map
   useEffect(() => {
-    if (!map.current || !map.current.getSource('waypoints') || !mapInitialized) return;
+    if (!map.current || !map.current.getSource('waypoints')) return;
 
     const waypointFeatures = waypoints.map((waypoint, index) => ({
       type: 'Feature' as const,
@@ -507,7 +498,7 @@ const RouteMap: React.FC<RouteMapProps> = ({ onToggleRouteMode }) => {
     } else if (waypoints.length < 2) {
       clearRoute();
     }
-  }, [waypoints, generateRoute, mapInitialized]);
+  }, [waypoints, generateRoute]);
 
   const clearRoute = () => {
     const surfaceTypes = ['paved', 'unpaved', 'path', 'ferry', 'default'];
@@ -530,21 +521,17 @@ const RouteMap: React.FC<RouteMapProps> = ({ onToggleRouteMode }) => {
     clearRoute();
   };
 
-  const toggleRouteMode = () => {
-    setIsRouteMode(prev => !prev);
-  };
-
-  // Expose toggle function to parent
+  // Expose toggle function for MapToolbar
   useEffect(() => {
-    if (onToggleRouteMode) {
-      (window as any).toggleRouteMode = toggleRouteMode;
-    }
-  }, [onToggleRouteMode]);
+    (window as any).toggleRouteMode = () => {
+      setIsRouteMode(prev => !prev);
+    };
+  }, []);
 
   // Show loading state while getting token
   if (isLoadingToken) {
     return (
-      <div className="relative w-full h-screen bg-muted rounded-lg flex items-center justify-center">
+      <div className="relative w-full h-full bg-muted rounded-lg flex items-center justify-center">
         <div className="text-center">
           <div className="animate-pulse text-lg text-muted-foreground mb-2">Loading map...</div>
           <div className="text-sm text-muted-foreground">Initializing secure connection</div>
@@ -556,7 +543,7 @@ const RouteMap: React.FC<RouteMapProps> = ({ onToggleRouteMode }) => {
   // Show error state if no token
   if (!mapboxToken) {
     return (
-      <div className="relative w-full h-screen bg-muted rounded-lg flex items-center justify-center">
+      <div className="relative w-full h-full bg-muted rounded-lg flex items-center justify-center">
         <div className="text-center">
           <div className="text-lg text-foreground mb-2">Map Unavailable</div>
           <div className="text-sm text-muted-foreground">Please contact support if this persists</div>
@@ -671,6 +658,16 @@ const RouteMap: React.FC<RouteMapProps> = ({ onToggleRouteMode }) => {
                 Clear All Waypoints
               </Button>
             )}
+          </Card>
+        </div>
+      )}
+
+      {/* Route Mode Indicator */}
+      {isRouteMode && (
+        <div className="absolute top-4 left-4 z-10">
+          <Card className="p-3 bg-primary/90 text-primary-foreground">
+            <div className="text-sm font-medium">Route Mode Active</div>
+            <div className="text-xs opacity-80">Click on map to add waypoints</div>
           </Card>
         </div>
       )}
