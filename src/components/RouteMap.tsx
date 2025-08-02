@@ -125,8 +125,14 @@ const RouteMap: React.FC<RouteMapProps> = ({ onToggleRouteMode }) => {
 
   // Initialize map
   useEffect(() => {
-    if (!mapContainer.current || !mapboxToken || !currentLocation || mapInitialized) {
+    if (!mapContainer.current || !mapboxToken || !currentLocation) {
       return;
+    }
+
+    // Clear any existing map
+    if (map.current) {
+      map.current.remove();
+      map.current = null;
     }
 
     console.log('Initializing map with token and location:', currentLocation);
@@ -286,10 +292,9 @@ const RouteMap: React.FC<RouteMapProps> = ({ onToggleRouteMode }) => {
       if (map.current) {
         map.current.remove();
         map.current = null;
-        setMapInitialized(false);
       }
     };
-  }, [mapboxToken, currentLocation, mapInitialized, isRouteMode, selectedWaypoint, waypoints.length, toast]);
+  }, [mapboxToken, currentLocation, toast]);
 
   const generateRoute = useCallback(async () => {
     if (waypoints.length < 2 || !mapboxToken) return;
