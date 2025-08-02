@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { AppHeader } from "@/components/AppHeader";
@@ -8,6 +8,15 @@ import RouteMap from "@/components/RouteMap";
 const Index = () => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
+  const [isRouteMode, setIsRouteMode] = useState(false);
+
+  // Expose toggle function for MapToolbar
+  useEffect(() => {
+    (window as any).toggleRouteMode = () => {
+      console.log('Toggle route mode called from global function');
+      setIsRouteMode(prev => !prev);
+    };
+  }, []);
 
   useEffect(() => {
     // Redirect to auth page if not authenticated
@@ -36,7 +45,7 @@ const Index = () => {
     <div className="min-h-screen w-full bg-background relative">
       <AppHeader />
       <MapToolbar />
-      <RouteMap />
+      <RouteMap isRouteMode={isRouteMode} setIsRouteMode={setIsRouteMode} />
     </div>
   );
 };

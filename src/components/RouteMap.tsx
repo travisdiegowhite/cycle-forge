@@ -29,7 +29,12 @@ interface ElevationPoint {
   elevation: number;
 }
 
-const RouteMap: React.FC = () => {
+interface RouteMapProps {
+  isRouteMode: boolean;
+  setIsRouteMode: (value: boolean) => void;
+}
+
+const RouteMap: React.FC<RouteMapProps> = ({ isRouteMode, setIsRouteMode }) => {
   const { session } = useAuth();
   const { toast } = useToast();
   const mapContainer = useRef<HTMLDivElement>(null);
@@ -38,7 +43,7 @@ const RouteMap: React.FC = () => {
   const [routeGeometry, setRouteGeometry] = useState<any>(null);
   const [routeStats, setRouteStats] = useState<RouteStats>({ distance: 0, duration: 0, waypointCount: 0 });
   const [elevationProfile, setElevationProfile] = useState<ElevationPoint[]>([]);
-  const [isRouteMode, setIsRouteMode] = useState(false);
+  
   const [selectedWaypoint, setSelectedWaypoint] = useState<string | null>(null);
   const [mapboxToken, setMapboxToken] = useState<string | null>(null);
   const [isLoadingToken, setIsLoadingToken] = useState(true);
@@ -542,17 +547,6 @@ const RouteMap: React.FC = () => {
     clearRoute();
   };
 
-  // Expose toggle function for MapToolbar
-  useEffect(() => {
-    (window as any).toggleRouteMode = () => {
-      console.log('Toggle route mode called, current state:', isRouteMode);
-      setIsRouteMode(prev => {
-        const newState = !prev;
-        console.log('Route mode changed to:', newState);
-        return newState;
-      });
-    };
-  }, [isRouteMode]);
 
   // Show loading state while getting token
   if (isLoadingToken) {
