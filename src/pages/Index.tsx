@@ -1,9 +1,8 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { SidebarProvider } from "@/components/ui/sidebar";
-import { AppSidebar } from "@/components/AppSidebar";
 import { AppHeader } from "@/components/AppHeader";
+import { MapToolbar } from "@/components/MapToolbar";
 import RouteMap from "@/components/RouteMap";
 
 const Index = () => {
@@ -34,19 +33,11 @@ const Index = () => {
   }
 
   return (
-    <SidebarProvider>
-      <div className="min-h-screen flex flex-col w-full bg-background">
-        <AppHeader />
-        
-        <div className="flex flex-1 w-full">
-          <AppSidebar />
-          
-          <main className="flex-1 relative">
-            <RouteMap />
-          </main>
-        </div>
-      </div>
-    </SidebarProvider>
+    <div className="min-h-screen w-full bg-background relative">
+      <AppHeader />
+      <MapToolbar />
+      <RouteMap />
+    </div>
   );
 };
 
