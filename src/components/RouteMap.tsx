@@ -1,19 +1,13 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { Button } from './ui/button';
 import { Card } from './ui/card';
-import { Input } from './ui/input';
-import { MapPin, Route, Trash2, Download, Search, Navigation, Save, FolderOpen } from 'lucide-react';
-
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Button } from './ui/button';
+import { Trash2 } from 'lucide-react';
 import { supabase } from "@/integrations/supabase/client";
-import { StravaImport } from './StravaImport';
-import { StravaRoutesViewer } from './StravaRoutesViewer';
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import { decodePolyline, calculateCenter, calculateBounds } from '@/utils/polylineDecoder';
+import { decodePolyline, calculateBounds } from '@/utils/polylineDecoder';
 
 interface Waypoint {
   id: string;
@@ -36,7 +30,11 @@ interface ElevationPoint {
   elevation: number;
 }
 
-const RouteMap: React.FC = () => {
+interface RouteMapProps {
+  onToggleRouteMode?: () => void;
+}
+
+const RouteMap: React.FC<RouteMapProps> = ({ onToggleRouteMode }) => {
   const { session } = useAuth();
   const { toast } = useToast();
   const mapContainer = useRef<HTMLDivElement>(null);
@@ -53,13 +51,8 @@ const RouteMap: React.FC = () => {
   const [isLoadingToken, setIsLoadingToken] = useState(true);
   const [useMetric, setUseMetric] = useState(true);
   const [currentLocation, setCurrentLocation] = useState<[number, number] | null>(null);
-  const [locationSearch, setLocationSearch] = useState('');
-  const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const [isSnapping, setIsSnapping] = useState(false);
   const [savedRoutes, setSavedRoutes] = useState<any[]>([]);
-  const [showSaveDialog, setShowSaveDialog] = useState(false);
-  const [showLoadDialog, setShowLoadDialog] = useState(false);
-  const [routeName, setRouteName] = useState('');
   const [stravaRoutes, setStravaRoutes] = useState<any[]>([]);
   const [visibleStravaRoutes, setVisibleStravaRoutes] = useState<Set<number>>(new Set());
 
@@ -172,7 +165,7 @@ const RouteMap: React.FC = () => {
     };
 
     getCurrentLocation();
-  }, [session, toast]);
+  }, []);
 
   // Initialize map
   useEffect(() => {
@@ -369,63 +362,6 @@ const RouteMap: React.FC = () => {
     };
   }, [mapboxToken, currentLocation]);
 
-  // Search for a location using Mapbox Geocoding API
-  const searchLocation = async () => {
-    if (!locationSearch.trim() || !mapboxToken) return;
-    
-    setIsLoadingLocation(true);
-    try {
-      const response = await fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(locationSearch)}.json?access_token=${mapboxToken}&limit=1`
-      );
-      
-      const data = await response.json();
-      
-      if (data.features && data.features[0]) {
-        const [lng, lat] = data.features[0].center;
-        
-        // Fly to the location
-        if (map.current) {
-          map.current.flyTo({
-            center: [lng, lat],
-            zoom: 14,
-            duration: 2000
-          });
-        }
-        
-        toast({
-          title: "Location Found",
-          description: `Navigated to ${data.features[0].place_name}`,
-        });
-      } else {
-        toast({
-          title: "Location Not Found",
-          description: "Please try a different search term.",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      console.error('Error searching location:', error);
-      toast({
-        title: "Search Error",
-        description: "Failed to search for location. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoadingLocation(false);
-    }
-  };
-
-  // Go to current location
-  const goToCurrentLocation = () => {
-    if (currentLocation && map.current) {
-      map.current.flyTo({
-        center: currentLocation,
-        zoom: 14,
-        duration: 2000
-      });
-    }
-  };
 
   const handleMapClick = useCallback((e: mapboxgl.MapMouseEvent) => {
     console.log('handleMapClick called:', { 
@@ -765,6 +701,11 @@ const RouteMap: React.FC = () => {
     ]);
   }, [selectedWaypoint]);
 
+  // Update isRouteModeRef when isRouteMode changes
+  useEffect(() => {
+    isRouteModeRef.current = isRouteMode;
+    console.log('Route mode changed:', isRouteMode);
+  }, [isRouteMode]);
 
   const clearRoute = () => {
     // Clear all surface-specific route layers
@@ -788,107 +729,17 @@ const RouteMap: React.FC = () => {
     clearRoute();
   };
 
-  const saveRoute = async () => {
-    if (!routeGeometry || waypoints.length === 0 || !session?.user || !routeName.trim()) {
-      toast({
-        title: "Cannot Save Route",
-        description: "Please ensure you have a valid route and enter a name.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      const { error } = await supabase
-        .from('routes')
-        .insert({
-          user_id: session.user.id,
-          name: routeName,
-          waypoints: waypoints as any,
-          route_geometry: routeGeometry as any,
-          route_stats: routeStats as any
-        });
-
-      if (error) {
-        console.error('Error saving route:', error);
-        toast({
-          title: "Save Failed",
-          description: "Failed to save route. Please try again.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Refresh saved routes list
-      const { data } = await supabase
-        .from('routes')
-        .select('*')
-        .order('created_at', { ascending: false });
-      
-      setSavedRoutes(data || []);
-      setShowSaveDialog(false);
-      setRouteName('');
-
-      toast({
-        title: "Route Saved",
-        description: `Route "${routeName}" has been saved successfully.`,
-      });
-    } catch (error) {
-      console.error('Error saving route:', error);
-      toast({
-        title: "Save Failed",
-        description: "Failed to save route. Please try again.",
-        variant: "destructive",
-      });
-    }
+  const toggleRouteMode = () => {
+    setIsRouteMode(prev => !prev);
   };
 
-  const loadRoute = async (routeId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('routes')
-        .select('*')
-        .eq('id', routeId)
-        .single();
-
-      if (error || !data) {
-        console.error('Error loading route:', error);
-        toast({
-          title: "Load Failed",
-          description: "Failed to load route. Please try again.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Load route data
-      setWaypoints((data.waypoints as unknown as Waypoint[]) || []);
-      setRouteGeometry(data.route_geometry);
-      setRouteStats((data.route_stats as unknown as RouteStats) || { distance: 0, duration: 0, waypointCount: 0 });
-      setShowLoadDialog(false);
-
-      toast({
-        title: "Route Loaded",
-        description: `Route "${data.name}" has been loaded successfully.`,
-      });
-
-      // Center map on route
-      if (data.waypoints && Array.isArray(data.waypoints) && data.waypoints.length > 0 && map.current) {
-        const bounds = new mapboxgl.LngLatBounds();
-        (data.waypoints as unknown as Waypoint[]).forEach((waypoint: Waypoint) => {
-          bounds.extend(waypoint.coordinates);
-        });
-        map.current.fitBounds(bounds, { padding: 50 });
-      }
-    } catch (error) {
-      console.error('Error loading route:', error);
-      toast({
-        title: "Load Failed",
-        description: "Failed to load route. Please try again.",
-        variant: "destructive",
-      });
+  // Expose toggle function to parent
+  useEffect(() => {
+    if (onToggleRouteMode) {
+      (window as any).toggleRouteMode = toggleRouteMode;
     }
-  };
+  }, [onToggleRouteMode]);
+
 
   const handleStravaRouteImported = (routeData: any) => {
     setStravaRoutes(prev => [...prev, routeData]);
@@ -965,64 +816,6 @@ const RouteMap: React.FC = () => {
     }
   };
 
-  const exportRoute = () => {
-    if (!routeGeometry || waypoints.length === 0) return;
-
-    const timestamp = new Date().toISOString();
-    const routeName = `Cycling Route ${new Date().toISOString().split('T')[0]}`;
-    
-    // Generate GPX content
-    let gpxContent = `<?xml version="1.0" encoding="UTF-8"?>
-<gpx version="1.1" creator="Route Builder" xmlns="http://www.topografix.com/GPX/1/1">
-  <metadata>
-    <name>${routeName}</name>
-    <desc>Cycling route with ${waypoints.length} waypoints, ${routeStats.distance}${useMetric ? 'km' : 'mi'} distance</desc>
-    <time>${timestamp}</time>
-  </metadata>
-`;
-
-    // Add waypoints
-    waypoints.forEach((waypoint, index) => {
-      gpxContent += `  <wpt lat="${waypoint.coordinates[1]}" lon="${waypoint.coordinates[0]}">
-    <name>Waypoint ${index + 1}</name>
-    <desc>${waypoint.name || `Waypoint ${index + 1}`}</desc>
-  </wpt>
-`;
-    });
-
-    // Add route track
-    if (routeGeometry && routeGeometry.coordinates) {
-      gpxContent += `  <trk>
-    <name>${routeName}</name>
-    <desc>Generated cycling route</desc>
-    <trkseg>
-`;
-      
-      routeGeometry.coordinates.forEach((coord: [number, number]) => {
-        gpxContent += `      <trkpt lat="${coord[1]}" lon="${coord[0]}"></trkpt>
-`;
-      });
-      
-      gpxContent += `    </trkseg>
-  </trk>
-`;
-    }
-
-    gpxContent += `</gpx>`;
-
-    const blob = new Blob([gpxContent], { type: 'application/gpx+xml' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `cycling-route-${new Date().toISOString().split('T')[0]}.gpx`;
-    a.click();
-    URL.revokeObjectURL(url);
-
-    toast({
-      title: "Route Exported",
-      description: "GPX file has been downloaded successfully.",
-    });
-  };
 
   // Show loading state while getting token
   if (isLoadingToken) {
@@ -1052,217 +845,103 @@ const RouteMap: React.FC = () => {
 
   return (
     <div className="w-full h-full bg-background relative">
-        {/* Elevation Profile Panel */}
-        {routeGeometry && elevationProfile.length > 0 && (
-          <div className="absolute top-4 right-4 w-80 z-10">
-            <Card className="p-4 shadow-card bg-background/95 backdrop-blur-md border">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-card-foreground">Route Analysis</h3>
-                  <Button
-                    onClick={() => setUseMetric(!useMetric)}
-                    variant="outline"
-                    size="sm"
-                    className="h-6 px-2 text-xs"
-                  >
-                    {useMetric ? 'km' : 'mi'}
-                  </Button>
-                </div>
-                  <div className="p-4 space-y-4">
-                    {/* Route Statistics */}
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <h3 className="font-medium text-card-foreground">Route Statistics</h3>
-                        <Button
-                          onClick={() => setUseMetric(!useMetric)}
-                          variant="outline"
-                          size="sm"
-                          className="h-6 px-2 text-xs"
-                        >
-                          {useMetric ? 'km' : 'mi'}
-                        </Button>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-3 text-sm">
-                        <div className="text-center p-2 bg-muted/30 rounded">
-                          <div className="text-xs text-muted-foreground">Distance</div>
-                          <div className="font-medium">{routeStats.distance} {useMetric ? 'km' : 'mi'}</div>
-                        </div>
-                        <div className="text-center p-2 bg-muted/30 rounded">
-                          <div className="text-xs text-muted-foreground">Duration</div>
-                          <div className="font-medium">{routeStats.duration} min</div>
-                        </div>
-                        <div className="text-center p-2 bg-muted/30 rounded">
-                          <div className="text-xs text-muted-foreground">Elevation Gain</div>
-                          <div className="font-medium text-green-600">
-                            +{useMetric 
-                              ? (routeStats.elevationGain || 0) 
-                              : Math.round((routeStats.elevationGain || 0) * 3.28084)
-                            }{useMetric ? 'm' : 'ft'}
-                          </div>
-                        </div>
-                        <div className="text-center p-2 bg-muted/30 rounded">
-                          <div className="text-xs text-muted-foreground">Elevation Loss</div>
-                          <div className="font-medium text-red-600">
-                            -{useMetric 
-                              ? (routeStats.elevationLoss || 0) 
-                              : Math.round((routeStats.elevationLoss || 0) * 3.28084)
-                            }{useMetric ? 'm' : 'ft'}
-                          </div>
-                        </div>
-                        <div className="text-center p-2 bg-muted/30 rounded">
-                          <div className="text-xs text-muted-foreground">Max Elevation</div>
-                          <div className="font-medium">
-                            {useMetric 
-                              ? (routeStats.maxElevation || 0) 
-                              : Math.round((routeStats.maxElevation || 0) * 3.28084)
-                            }{useMetric ? 'm' : 'ft'}
-                          </div>
-                        </div>
-                        <div className="text-center p-2 bg-muted/30 rounded">
-                          <div className="text-xs text-muted-foreground">Min Elevation</div>
-                          <div className="font-medium">
-                            {useMetric 
-                              ? (routeStats.minElevation || 0) 
-                              : Math.round((routeStats.minElevation || 0) * 3.28084)
-                            }{useMetric ? 'm' : 'ft'}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Elevation Profile Chart */}
-                    <div className="space-y-2">
-                      <h4 className="text-sm font-medium text-card-foreground">Elevation Profile</h4>
-                      <div className="h-32 w-full bg-muted/30 rounded-md relative overflow-hidden">
-                        <svg
-                          width="100%"
-                          height="100%"
-                          viewBox="0 0 400 128"
-                          className="absolute inset-0"
-                        >
-                          {/* Grid lines */}
-                          <defs>
-                            <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
-                              <path d="M 20 0 L 0 0 0 20" fill="none" stroke="hsl(var(--muted-foreground))" strokeWidth="0.5" opacity="0.3"/>
-                            </pattern>
-                          </defs>
-                          <rect width="100%" height="100%" fill="url(#grid)" />
-                          
-                          {/* Elevation curve */}
-                          {elevationProfile.length > 1 && (
-                            <polyline
-                              fill="none"
-                              stroke="hsl(var(--primary))"
-                              strokeWidth="2"
-                              points={elevationProfile.map((point, index) => {
-                                const x = (index / (elevationProfile.length - 1)) * 400;
-                                const minElev = Math.min(...elevationProfile.map(p => p.elevation));
-                                const maxElev = Math.max(...elevationProfile.map(p => p.elevation));
-                                const elevRange = maxElev - minElev || 1;
-                                const y = 128 - ((point.elevation - minElev) / elevRange) * 110 - 9;
-                                return `${x},${y}`;
-                              }).join(' ')}
-                            />
-                          )}
-                          
-                          {/* Fill area under curve */}
-                          {elevationProfile.length > 1 && (
-                            <polygon
-                              fill="hsl(var(--primary))"
-                              fillOpacity="0.2"
-                              points={[
-                                ...elevationProfile.map((point, index) => {
-                                  const x = (index / (elevationProfile.length - 1)) * 400;
-                                  const minElev = Math.min(...elevationProfile.map(p => p.elevation));
-                                  const maxElev = Math.max(...elevationProfile.map(p => p.elevation));
-                                  const elevRange = maxElev - minElev || 1;
-                                  const y = 128 - ((point.elevation - minElev) / elevRange) * 110 - 9;
-                                  return `${x},${y}`;
-                                }),
-                                '400,128',
-                                '0,128'
-                              ].join(' ')}
-                            />
-                          )}
-                        </svg>
-                      </div>
-                    </div>
-
-                    {/* Surface Legend */}
-                    <div className="space-y-2">
-                      <h4 className="text-sm font-medium text-card-foreground">Surface Types</h4>
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2 text-xs">
-                          <div className="w-3 h-1 bg-green-600 rounded"></div>
-                          <span className="text-muted-foreground">Paved Roads</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-xs">
-                          <div className="w-3 h-1 bg-orange-500 rounded"></div>
-                          <span className="text-muted-foreground">Unpaved/Gravel</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-xs">
-                          <div className="w-3 h-1 bg-yellow-500 rounded"></div>
-                          <span className="text-muted-foreground">Paths/Trails</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-xs">
-                          <div className="w-3 h-1 bg-blue-500 rounded"></div>
-                          <span className="text-muted-foreground">Ferry Routes</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-              </div>
-            </Card>
-          </div>
-        )}
-
       {/* Map Container */}
       <div ref={mapContainer} className="absolute inset-0" />
-          
-        
-
-          
-          {/* Waypoint List */}
-          {waypoints.length > 0 && (
-            <div className="absolute bottom-4 right-4 w-64 z-10">
-              <Card className="p-4 shadow-card bg-background/10 backdrop-blur-md border-white/20">
-                <h3 className="font-medium text-card-foreground mb-3">Waypoints</h3>
-                <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {waypoints.map((waypoint, index) => (
-                    <div
-                      key={waypoint.id}
-                      className={`flex items-center justify-between p-2 rounded-md transition-colors ${
-                        selectedWaypoint === waypoint.id 
-                          ? 'bg-primary/20 border border-primary/30' 
-                          : 'bg-secondary/50 hover:bg-secondary/70'
-                      }`}
-                      onClick={() => setSelectedWaypoint(selectedWaypoint === waypoint.id ? null : waypoint.id)}
-                    >
-                       <span className="text-sm font-medium cursor-pointer">
-                          {index + 1}. Waypoint {index + 1}
-                          {selectedWaypoint === waypoint.id && <span className="ml-2 text-xs text-primary">(selected)</span>}
-                       </span>
-                       <Button
-                         onClick={(e) => {
-                           e.stopPropagation();
-                           setWaypoints(prev => prev.filter(w => w.id !== waypoint.id));
-                           if (selectedWaypoint === waypoint.id) {
-                             setSelectedWaypoint(null);
-                           }
-                         }}
-                         variant="ghost"
-                         size="sm"
-                         className="h-6 w-6 p-0 hover:bg-destructive/20"
-                       >
-                         <Trash2 className="h-3 w-3" />
-                       </Button>
-                    </div>
-                  ))}
+      
+      {/* Route Statistics Panel */}
+      {routeGeometry && (
+        <div className="absolute top-4 right-4 w-80 z-10">
+          <Card className="p-4 shadow-card bg-background/95 backdrop-blur-md border">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-card-foreground">Route Statistics</h3>
+                <Button
+                  onClick={() => setUseMetric(!useMetric)}
+                  variant="outline"
+                  size="sm"
+                  className="h-6 px-2 text-xs"
+                >
+                  {useMetric ? 'km' : 'mi'}
+                </Button>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="text-center p-2 bg-muted/30 rounded">
+                  <div className="text-xs text-muted-foreground">Distance</div>
+                  <div className="font-medium">{routeStats.distance} {useMetric ? 'km' : 'mi'}</div>
                 </div>
-              </Card>
+                <div className="text-center p-2 bg-muted/30 rounded">
+                  <div className="text-xs text-muted-foreground">Duration</div>
+                  <div className="font-medium">{routeStats.duration} min</div>
+                </div>
+                {routeStats.elevationGain !== undefined && (
+                  <>
+                    <div className="text-center p-2 bg-muted/30 rounded">
+                      <div className="text-xs text-muted-foreground">Elevation Gain</div>
+                      <div className="font-medium text-green-600">
+                        +{useMetric 
+                          ? (routeStats.elevationGain || 0) 
+                          : Math.round((routeStats.elevationGain || 0) * 3.28084)
+                        }{useMetric ? 'm' : 'ft'}
+                      </div>
+                    </div>
+                    <div className="text-center p-2 bg-muted/30 rounded">
+                      <div className="text-xs text-muted-foreground">Elevation Loss</div>
+                      <div className="font-medium text-red-600">
+                        -{useMetric 
+                          ? (routeStats.elevationLoss || 0) 
+                          : Math.round((routeStats.elevationLoss || 0) * 3.28084)
+                        }{useMetric ? 'm' : 'ft'}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
-          )}
+          </Card>
+        </div>
+      )}
+      
+      {/* Waypoint List */}
+      {waypoints.length > 0 && (
+        <div className="absolute bottom-4 right-4 w-64 z-10">
+          <Card className="p-4 shadow-card bg-background/95 backdrop-blur-md border">
+            <h3 className="font-medium text-card-foreground mb-3">Waypoints</h3>
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {waypoints.map((waypoint, index) => (
+                <div
+                  key={waypoint.id}
+                  className={`flex items-center justify-between p-2 rounded-md transition-colors ${
+                    selectedWaypoint === waypoint.id 
+                      ? 'bg-primary/20 border border-primary/30' 
+                      : 'bg-secondary/50 hover:bg-secondary/70'
+                  }`}
+                  onClick={() => setSelectedWaypoint(selectedWaypoint === waypoint.id ? null : waypoint.id)}
+                >
+                   <span className="text-sm font-medium cursor-pointer">
+                      {index + 1}. Waypoint {index + 1}
+                      {selectedWaypoint === waypoint.id && <span className="ml-2 text-xs text-primary">(selected)</span>}
+                   </span>
+                   <Button
+                     onClick={(e) => {
+                       e.stopPropagation();
+                       setWaypoints(prev => prev.filter(w => w.id !== waypoint.id));
+                       if (selectedWaypoint === waypoint.id) {
+                         setSelectedWaypoint(null);
+                       }
+                     }}
+                     variant="ghost"
+                     size="sm"
+                     className="h-6 w-6 p-0 hover:bg-destructive/20"
+                   >
+                     <Trash2 className="h-3 w-3" />
+                   </Button>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 };

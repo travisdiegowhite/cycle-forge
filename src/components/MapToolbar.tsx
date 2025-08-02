@@ -24,11 +24,20 @@ export function MapToolbar() {
         <div className="flex flex-col gap-1 bg-background/95 backdrop-blur-sm border border-border rounded-lg p-1 shadow-sm">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-10 w-10 p-0">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="h-10 w-10 p-0"
+                onClick={() => {
+                  if ((window as any).toggleRouteMode) {
+                    (window as any).toggleRouteMode();
+                  }
+                }}
+              >
                 <Route className="h-5 w-5" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="right">Route Planning</TooltipContent>
+            <TooltipContent side="right">Toggle Route Mode</TooltipContent>
           </Tooltip>
           
           <Tooltip>
