@@ -29,8 +29,11 @@ export function MapToolbar() {
                 size="sm" 
                 className="h-10 w-10 p-0"
                 onClick={() => {
-                  if ((window as any).toggleRouteMode) {
+                  console.log('Route button clicked');
+                  if (typeof (window as any).toggleRouteMode === 'function') {
                     (window as any).toggleRouteMode();
+                  } else {
+                    console.error('toggleRouteMode function not found');
                   }
                 }}
               >
