@@ -33,10 +33,12 @@ const Index = () => {
   }
 
   return (
-    <div className="min-h-screen w-full bg-background relative">
+    <div className="min-h-screen w-full bg-background flex flex-col">
       <AppHeader />
       <MapToolbar />
-      <RouteMap />
+      <div className="flex-1">
+        <RouteMap />
+      </div>
     </div>
   );
 };

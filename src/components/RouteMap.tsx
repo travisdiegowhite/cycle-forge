@@ -568,7 +568,7 @@ const RouteMap: React.FC<RouteMapProps> = ({ onToggleRouteMode }) => {
   return (
     <div className="w-full h-full bg-background relative">
       {/* Map Container */}
-      <div ref={mapContainer} className="absolute inset-0" />
+      <div ref={mapContainer} className="w-full h-full" />
       
       {/* Route Statistics Panel */}
       {routeGeometry && (
