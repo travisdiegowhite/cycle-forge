@@ -120,8 +120,27 @@ const RouteMap: React.FC = () => {
   // Initialize map
   useEffect(() => {
     if (!mapContainer.current || !mapboxToken || !currentLocation) {
+      console.log('Map init check:', {
+        container: !!mapContainer.current,
+        token: !!mapboxToken,
+        location: !!currentLocation,
+        containerDimensions: mapContainer.current ? {
+          width: mapContainer.current.offsetWidth,
+          height: mapContainer.current.offsetHeight,
+          clientWidth: mapContainer.current.clientWidth,
+          clientHeight: mapContainer.current.clientHeight
+        } : null
+      });
       return;
     }
+
+    // Log container dimensions
+    console.log('Container dimensions:', {
+      width: mapContainer.current.offsetWidth,
+      height: mapContainer.current.offsetHeight,
+      clientWidth: mapContainer.current.clientWidth,
+      clientHeight: mapContainer.current.clientHeight
+    });
 
     // Clear any existing map
     if (map.current) {
@@ -553,9 +572,9 @@ const RouteMap: React.FC = () => {
   }
 
   return (
-    <div className="w-full h-full bg-background relative">
+    <div className="w-full h-full bg-background relative min-h-[400px]">
       {/* Map Container */}
-      <div ref={mapContainer} className="w-full h-full" />
+      <div ref={mapContainer} className="w-full h-full min-h-[400px] bg-gray-200" />
       
       {/* Route Statistics Panel */}
       {routeGeometry && (
