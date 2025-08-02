@@ -572,9 +572,9 @@ const RouteMap: React.FC = () => {
   }
 
   return (
-    <div className="w-full h-full bg-background relative min-h-[400px]">
+    <div className="w-full h-screen bg-background relative">
       {/* Map Container */}
-      <div ref={mapContainer} className="w-full h-full min-h-[400px] bg-gray-200" />
+      <div ref={mapContainer} className="w-full h-full" />
       
       {/* Route Statistics Panel */}
       {routeGeometry && (
