@@ -14,15 +14,6 @@ import { StravaRoutesViewer } from './StravaRoutesViewer';
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { decodePolyline, calculateCenter, calculateBounds } from '@/utils/polylineDecoder';
-import { 
-  Sidebar, 
-  SidebarContent, 
-  SidebarGroup, 
-  SidebarGroupContent, 
-  SidebarGroupLabel, 
-  SidebarProvider, 
-  SidebarTrigger 
-} from "./ui/sidebar";
 
 interface Waypoint {
   id: string;
@@ -1060,16 +1051,23 @@ const RouteMap: React.FC = () => {
   }
 
   return (
-    <SidebarProvider>
-      <div className="w-full h-screen bg-background flex">
-        {/* Elevation Profile Sidebar */}
+    <div className="w-full h-full bg-background relative">
+        {/* Elevation Profile Panel */}
         {routeGeometry && elevationProfile.length > 0 && (
-          <Sidebar className="w-80" collapsible="offcanvas">
-            <SidebarTrigger className="m-2 self-end" />
-            <SidebarContent>
-              <SidebarGroup>
-                <SidebarGroupLabel>Route Analysis</SidebarGroupLabel>
-                <SidebarGroupContent>
+          <div className="absolute top-4 right-4 w-80 z-10">
+            <Card className="p-4 shadow-card bg-background/95 backdrop-blur-md border">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-card-foreground">Route Analysis</h3>
+                  <Button
+                    onClick={() => setUseMetric(!useMetric)}
+                    variant="outline"
+                    size="sm"
+                    className="h-6 px-2 text-xs"
+                  >
+                    {useMetric ? 'km' : 'mi'}
+                  </Button>
+                </div>
                   <div className="p-4 space-y-4">
                     {/* Route Statistics */}
                     <div className="space-y-3">
@@ -1214,22 +1212,14 @@ const RouteMap: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                </SidebarGroupContent>
-              </SidebarGroup>
-            </SidebarContent>
-          </Sidebar>
+              </div>
+            </Card>
+          </div>
         )}
 
-        {/* Main Content - Map takes full remaining space */}
-        <main className="flex-1 relative">
-          {/* Global Sidebar Trigger - Always visible */}
-          {routeGeometry && elevationProfile.length > 0 && (
-            <div className="absolute top-4 left-4 z-50">
-              <SidebarTrigger className="bg-card/95 backdrop-blur-sm border shadow-card" />
-            </div>
-          )}
+      {/* Map Container */}
+      <div ref={mapContainer} className="absolute inset-0" />
           
-          <div ref={mapContainer} className="absolute inset-0" />
         
           {/* Route Builder Tools - Top Left */}
           <div className="absolute top-4 left-4 space-y-4 z-20">
@@ -1470,9 +1460,7 @@ const RouteMap: React.FC = () => {
               </Card>
             </div>
           )}
-        </main>
-      </div>
-    </SidebarProvider>
+    </div>
   );
 };
 
