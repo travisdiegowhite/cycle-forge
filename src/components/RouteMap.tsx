@@ -14,7 +14,12 @@ import { StravaImport } from './StravaImport';
 import { StravaRoutesViewer } from './StravaRoutesViewer';
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { withRetry } from "@/hooks/useRetry";
+import LoadingSpinner from "./LoadingSpinner";
+import { MapSkeleton, RouteStatsSkeleton, WaypointListSkeleton } from "./LoadingSkeleton";
+import { formatErrorForToast } from "@/utils/errorMessages";
 import { decodePolyline, calculateCenter, calculateBounds } from '@/utils/polylineDecoder';
+import { Waypoint, RouteStats, ElevationPoint, StravaRoute, SavedRoute, MapboxRoute, SurfaceSegments, SurfaceSegment } from '@/types';
 import { 
   Sidebar, 
   SidebarContent, 
@@ -25,26 +30,6 @@ import {
   SidebarTrigger 
 } from "./ui/sidebar";
 
-interface Waypoint {
-  id: string;
-  coordinates: [number, number];
-  name?: string;
-}
-
-interface RouteStats {
-  distance: number;
-  duration: number;
-  waypointCount: number;
-  elevationGain?: number;
-  elevationLoss?: number;
-  maxElevation?: number;
-  minElevation?: number;
-}
-
-interface ElevationPoint {
-  distance: number;
-  elevation: number;
-}
 
 const RouteMap: React.FC = () => {
   const { session } = useAuth();
@@ -54,7 +39,7 @@ const RouteMap: React.FC = () => {
   const isRouteModeRef = useRef(false);
   const isDraggingRef = useRef(false);
   const [waypoints, setWaypoints] = useState<Waypoint[]>([]);
-  const [routeGeometry, setRouteGeometry] = useState<any>(null);
+  const [routeGeometry, setRouteGeometry] = useState<MapboxRoute['geometry'] | null>(null);
   const [routeStats, setRouteStats] = useState<RouteStats>({ distance: 0, duration: 0, waypointCount: 0 });
   const [elevationProfile, setElevationProfile] = useState<ElevationPoint[]>([]);
   const [isRouteMode, setIsRouteMode] = useState(false);
@@ -66,12 +51,42 @@ const RouteMap: React.FC = () => {
   const [locationSearch, setLocationSearch] = useState('');
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const [isSnapping, setIsSnapping] = useState(false);
-  const [savedRoutes, setSavedRoutes] = useState<any[]>([]);
+  const [savedRoutes, setSavedRoutes] = useState<SavedRoute[]>([]);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [showLoadDialog, setShowLoadDialog] = useState(false);
   const [routeName, setRouteName] = useState('');
-  const [stravaRoutes, setStravaRoutes] = useState<any[]>([]);
+  const [stravaRoutes, setStravaRoutes] = useState<StravaRoute[]>([]);
   const [visibleStravaRoutes, setVisibleStravaRoutes] = useState<Set<number>>(new Set());
+
+  // Create retry-enabled API functions
+  const getMapboxTokenWithRetry = withRetry(
+    async () => {
+      if (!session?.access_token) {
+        throw new Error('No session or access token available');
+      }
+
+      const { data, error } = await supabase.functions.invoke('get-mapbox-token', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (error) {
+        throw new Error(`Failed to get Mapbox token: ${error.message}`);
+      }
+
+      if (!data?.token) {
+        throw new Error('No token received from server');
+      }
+
+      return data.token;
+    },
+    {
+      maxAttempts: 3,
+      delay: 1000,
+      backoff: 'exponential',
+    }
+  );
 
   // Get Mapbox token from edge function
   useEffect(() => {
@@ -89,36 +104,16 @@ const RouteMap: React.FC = () => {
       }
 
       try {
-        console.log('Calling get-mapbox-token function...');
-        const { data, error } = await supabase.functions.invoke('get-mapbox-token', {
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-          },
-        });
-
-        console.log('get-mapbox-token response:', { data, error });
-
-        if (error) {
-          console.error('Error getting Mapbox token:', error);
-          toast({
-            title: "Map Error",
-            description: "Failed to load map configuration. Please try again.",
-            variant: "destructive",
-          });
-          return;
-        }
-
-        if (data?.token) {
-          console.log('Mapbox token received, setting token');
-          setMapboxToken(data.token);
-        } else {
-          console.log('No token in response data:', data);
-        }
+        console.log('Calling get-mapbox-token function with retry...');
+        const token = await getMapboxTokenWithRetry();
+        console.log('Mapbox token received, setting token');
+        setMapboxToken(token);
       } catch (error) {
-        console.error('Error calling get-mapbox-token function:', error);
+        console.error('Error getting Mapbox token after retries:', error);
+        const { title, description } = formatErrorForToast(error as Error);
         toast({
-          title: "Map Error", 
-          description: "Failed to load map configuration. Please try again.",
+          title,
+          description,
           variant: "destructive",
         });
       } finally {
@@ -379,46 +374,62 @@ const RouteMap: React.FC = () => {
     };
   }, [mapboxToken, currentLocation]);
 
+  // Create retry-enabled location search
+  const searchLocationWithRetry = withRetry(
+    async (searchTerm: string, token: string) => {
+      const response = await fetch(
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(searchTerm)}.json?access_token=${token}&limit=1`
+      );
+      
+      if (!response.ok) {
+        throw new Error(`Search request failed: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      if (!data.features || data.features.length === 0) {
+        throw new Error('Location not found');
+      }
+      
+      return data;
+    },
+    {
+      maxAttempts: 2,
+      delay: 1000,
+      backoff: 'linear',
+    }
+  );
+
   // Search for a location using Mapbox Geocoding API
   const searchLocation = async () => {
     if (!locationSearch.trim() || !mapboxToken) return;
     
     setIsLoadingLocation(true);
     try {
-      const response = await fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(locationSearch)}.json?access_token=${mapboxToken}&limit=1`
-      );
+      const data = await searchLocationWithRetry(locationSearch, mapboxToken);
+      const [lng, lat] = data.features[0].center;
       
-      const data = await response.json();
-      
-      if (data.features && data.features[0]) {
-        const [lng, lat] = data.features[0].center;
-        
-        // Fly to the location
-        if (map.current) {
-          map.current.flyTo({
-            center: [lng, lat],
-            zoom: 14,
-            duration: 2000
-          });
-        }
-        
-        toast({
-          title: "Location Found",
-          description: `Navigated to ${data.features[0].place_name}`,
-        });
-      } else {
-        toast({
-          title: "Location Not Found",
-          description: "Please try a different search term.",
-          variant: "destructive",
+      // Fly to the location
+      if (map.current) {
+        map.current.flyTo({
+          center: [lng, lat],
+          zoom: 14,
+          duration: 2000
         });
       }
-    } catch (error) {
-      console.error('Error searching location:', error);
+      
       toast({
-        title: "Search Error",
-        description: "Failed to search for location. Please try again.",
+        title: "Location Found",
+        description: `Navigated to ${data.features[0].place_name}`,
+      });
+    } catch (error) {
+      const err = error as Error;
+      console.error('Error searching location:', err);
+      
+      const { title, description } = formatErrorForToast(err);
+      toast({
+        title,
+        description,
         variant: "destructive",
       });
     } finally {
@@ -518,17 +529,17 @@ const RouteMap: React.FC = () => {
         snapWaypointsToRoute(route.geometry);
 
         // Process route segments by surface type
-        const surfaceSegments = {
-          'paved': [] as any[],
-          'unpaved': [] as any[],
-          'path': [] as any[],
-          'ferry': [] as any[],
-          'default': [] as any[]
+        const surfaceSegments: SurfaceSegments = {
+          'paved': [],
+          'unpaved': [],
+          'path': [],
+          'ferry': [],
+          'default': []
         };
 
         if (route.legs && route.legs[0] && route.legs[0].steps) {
-          route.legs.forEach((leg: any) => {
-            leg.steps.forEach((step: any) => {
+          route.legs.forEach((leg: MapboxRoute['legs'][0]) => {
+            leg.steps.forEach((step) => {
               let surfaceType = 'default';
               
               // Determine surface type based on road class and maneuver type
@@ -557,25 +568,27 @@ const RouteMap: React.FC = () => {
               }
 
               if (step.geometry && step.geometry.coordinates) {
-                surfaceSegments[surfaceType as keyof typeof surfaceSegments].push({
+                const segment: SurfaceSegment = {
                   type: 'Feature',
                   geometry: step.geometry,
                   properties: { 
-                    surface: surfaceType,
+                    surface: surfaceType as keyof SurfaceSegments,
                     name: step.name || 'Unnamed',
                     distance: step.distance 
                   }
-                });
+                };
+                surfaceSegments[surfaceType as keyof SurfaceSegments].push(segment);
               }
             });
           });
         } else {
           // Fallback: treat entire route as default surface
-          surfaceSegments.default.push({
+          const defaultSegment: SurfaceSegment = {
             type: 'Feature',
             geometry: route.geometry,
             properties: { surface: 'default' }
-          });
+          };
+          surfaceSegments.default.push(defaultSegment);
         }
 
          // Update each surface layer on map
@@ -608,7 +621,7 @@ const RouteMap: React.FC = () => {
   }, [waypoints, mapboxToken, useMetric, toast]);
 
   // Function to snap waypoints to the route
-  const snapWaypointsToRoute = useCallback((routeGeometry: any) => {
+  const snapWaypointsToRoute = useCallback((routeGeometry: MapboxRoute['geometry']) => {
     if (!routeGeometry || !routeGeometry.coordinates || isSnapping) return;
     
     setIsSnapping(true);
@@ -642,7 +655,7 @@ const RouteMap: React.FC = () => {
   }, [isSnapping]);
 
   // Get elevation profile using Open Elevation API
-  const getElevationProfile = async (coordinates: number[][]) => {
+  const getElevationProfile = async (coordinates: [number, number][]) => {
     try {
       // Sample coordinates along the route (max 100 points to avoid API limits)
       const maxPoints = 100;
@@ -656,7 +669,7 @@ const RouteMap: React.FC = () => {
       
       if (elevationData.results) {
         let cumulativeDistance = 0;
-        const profile: ElevationPoint[] = elevationData.results.map((point: any, index: number) => {
+        const profile: ElevationPoint[] = elevationData.results.map((point: { elevation: number }, index: number) => {
           if (index > 0) {
             const prevCoord = sampledCoords[index - 1];
             const currCoord = sampledCoords[index];
@@ -814,9 +827,9 @@ const RouteMap: React.FC = () => {
         .insert({
           user_id: session.user.id,
           name: routeName,
-          waypoints: waypoints as any,
-          route_geometry: routeGeometry as any,
-          route_stats: routeStats as any
+          waypoints: waypoints,
+          route_geometry: routeGeometry,
+          route_stats: routeStats
         });
 
       if (error) {
@@ -872,9 +885,9 @@ const RouteMap: React.FC = () => {
       }
 
       // Load route data
-      setWaypoints((data.waypoints as unknown as Waypoint[]) || []);
+      setWaypoints(data.waypoints || []);
       setRouteGeometry(data.route_geometry);
-      setRouteStats((data.route_stats as unknown as RouteStats) || { distance: 0, duration: 0, waypointCount: 0 });
+      setRouteStats(data.route_stats || { distance: 0, duration: 0, waypointCount: 0 });
       setShowLoadDialog(false);
 
       toast({
@@ -885,7 +898,7 @@ const RouteMap: React.FC = () => {
       // Center map on route
       if (data.waypoints && Array.isArray(data.waypoints) && data.waypoints.length > 0 && map.current) {
         const bounds = new mapboxgl.LngLatBounds();
-        (data.waypoints as unknown as Waypoint[]).forEach((waypoint: Waypoint) => {
+        data.waypoints.forEach((waypoint: Waypoint) => {
           bounds.extend(waypoint.coordinates);
         });
         map.current.fitBounds(bounds, { padding: 50 });
@@ -900,7 +913,7 @@ const RouteMap: React.FC = () => {
     }
   };
 
-  const handleStravaRouteImported = (routeData: any) => {
+  const handleStravaRouteImported = (routeData: StravaRoute) => {
     setStravaRoutes(prev => [...prev, routeData]);
   };
 
@@ -1038,10 +1051,14 @@ const RouteMap: React.FC = () => {
   if (isLoadingToken) {
     console.log('Still loading token...', { isLoadingToken, session: !!session });
     return (
-      <div className="relative w-full h-[600px] bg-muted rounded-lg flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-pulse text-lg text-muted-foreground mb-2">Loading map...</div>
-          <div className="text-sm text-muted-foreground">Initializing secure connection</div>
+      <div className="relative w-full h-[600px]">
+        <MapSkeleton />
+        <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <div className="text-center">
+            <LoadingSpinner size="lg" className="mb-4" />
+            <div className="text-lg text-foreground mb-2">Loading map...</div>
+            <div className="text-sm text-muted-foreground">Initializing secure connection</div>
+          </div>
         </div>
       </div>
     );

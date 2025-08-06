@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
@@ -6,8 +6,30 @@ import { Badge } from './ui/badge';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
-import { MapPin, Clock, TrendingUp, Upload, Plus, Link as LinkIcon } from 'lucide-react';
+import { MapPin, Clock, TrendingUp, Upload, Plus, Link as LinkIcon, Activity, ExternalLink } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import LoadingSpinner from './LoadingSpinner';
+
+interface StravaRoute {
+  id: number;
+  name: string;
+  description: string;
+  distance: number;
+  elevation_gain: number;
+  estimated_moving_time: number;
+  type: number;
+  sub_type: number;
+  created_at: string;
+  updated_at: string;
+  private: boolean;
+  starred: boolean;
+  map?: {
+    polyline?: string;
+    summary_polyline?: string;
+  };
+}
 
 interface RouteData {
   id: number;
@@ -26,6 +48,9 @@ interface StravaImportProps {
 export const StravaImport: React.FC<StravaImportProps> = ({ onRouteImported }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [stravaRoutes, setStravaRoutes] = useState<StravaRoute[]>([]);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authLoading, setAuthLoading] = useState(false);
   const [manualRoute, setManualRoute] = useState({
     name: '',
     description: '',
@@ -34,6 +59,127 @@ export const StravaImport: React.FC<StravaImportProps> = ({ onRouteImported }) =
     duration: ''
   });
   const { toast } = useToast();
+  const { session } = useAuth();
+
+  // Check for Strava authentication and load routes
+  const loadStravaRoutes = useCallback(async () => {
+    if (!session?.access_token) {
+      console.log('No session available for Strava import');
+      return;
+    }
+
+    setAuthLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('strava-auth', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (error) {
+        console.error('Strava auth error:', error);
+        
+        // Check if this is a 502 error (likely missing credentials)
+        if (error.message?.includes('502') || error.message?.includes('Bad Gateway')) {
+          toast({
+            title: "Strava Setup Required",
+            description: "Strava API credentials need to be configured. Please contact your administrator to set up Strava integration.",
+            variant: "destructive",
+          });
+          return;
+        }
+        
+        throw new Error(`Failed to connect to Strava: ${error.message}`);
+      }
+
+      console.log('Strava response:', data);
+
+      if (data.authUrl) {
+        // User needs to authenticate - redirect to Strava
+        window.open(data.authUrl, '_blank');
+        toast({
+          title: "Strava Authentication",
+          description: "Complete authentication in the new window, then try importing again.",
+        });
+        setIsAuthenticated(false);
+      } else if (data.success && data.routes) {
+        // Successfully got routes
+        setStravaRoutes(data.routes);
+        setIsAuthenticated(true);
+        toast({
+          title: "Strava Connected!",
+          description: `Found ${data.routes.length} route(s) from your Strava account.`,
+        });
+      }
+    } catch (error) {
+      console.error('Error loading Strava routes:', error);
+      
+      // Check if the error response contains HTML (502 error page)
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('<html>') || errorMessage.includes('502 Bad Gateway')) {
+        toast({
+          title: "Strava Setup Required",
+          description: "Strava API credentials are not configured. The integration needs to be set up by your administrator.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Strava Connection Failed",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      }
+      setIsAuthenticated(false);
+    } finally {
+      setAuthLoading(false);
+    }
+  }, [session, toast]);
+
+  // Handle Strava route import
+  const handleStravaRouteImport = useCallback((stravaRoute: StravaRoute) => {
+    const routeData: RouteData = {
+      id: stravaRoute.id,
+      name: stravaRoute.name,
+      description: stravaRoute.description || '',
+      distance: stravaRoute.distance,
+      elevation_gain: stravaRoute.elevation_gain,
+      estimated_moving_time: stravaRoute.estimated_moving_time,
+    };
+
+    onRouteImported(routeData);
+    
+    toast({
+      title: "Route imported successfully",
+      description: `Imported "${stravaRoute.name}" from Strava`,
+    });
+    
+    setIsOpen(false);
+  }, [onRouteImported, toast]);
+
+  // Check for URL parameters on component mount (for OAuth callback)
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const stravaAuth = urlParams.get('strava_auth');
+    const routesData = urlParams.get('routes');
+    
+    if (stravaAuth === 'success' && routesData) {
+      try {
+        const routes = JSON.parse(decodeURIComponent(routesData));
+        setStravaRoutes(routes);
+        setIsAuthenticated(true);
+        toast({
+          title: "Strava Connected!",
+          description: `Successfully imported ${routes.length} route(s) from Strava.`,
+        });
+        
+        // Clean up URL parameters
+        const newUrl = window.location.origin + window.location.pathname;
+        window.history.replaceState({}, document.title, newUrl);
+      } catch (error) {
+        console.error('Error parsing Strava routes from URL:', error);
+      }
+    }
+  }, [toast]);
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -182,7 +328,8 @@ export const StravaImport: React.FC<StravaImportProps> = ({ onRouteImported }) =
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
         <Button variant="outline" className="w-full">
-          Import Route
+          <Activity className="h-4 w-4 mr-2" />
+          Import from Strava
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
@@ -190,11 +337,140 @@ export const StravaImport: React.FC<StravaImportProps> = ({ onRouteImported }) =
           <DialogTitle>Import or Create Route</DialogTitle>
         </DialogHeader>
         
-        <Tabs defaultValue="file" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+        <Tabs defaultValue="strava" className="w-full">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="strava">Import from Strava</TabsTrigger>
             <TabsTrigger value="file">Upload GPX File</TabsTrigger>
             <TabsTrigger value="manual">Manual Entry</TabsTrigger>
           </TabsList>
+          
+          <TabsContent value="strava" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Activity className="w-5 h-5" />
+                  Import from Strava
+                </CardTitle>
+                <CardDescription>
+                  Connect your Strava account to import your saved routes directly.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {!isAuthenticated ? (
+                  <div className="text-center space-y-4">
+                    <p className="text-muted-foreground">
+                      Connect to Strava to access your saved routes
+                    </p>
+                    <Button 
+                      onClick={loadStravaRoutes} 
+                      disabled={authLoading || !session}
+                      className="w-full"
+                    >
+                      {authLoading ? (
+                        <>
+                          <LoadingSpinner size="sm" className="mr-2" />
+                          Connecting to Strava...
+                        </>
+                      ) : (
+                        <>
+                          <Activity className="h-4 w-4 mr-2" />
+                          Connect to Strava
+                        </>
+                      )}
+                    </Button>
+                    {!session && (
+                      <p className="text-sm text-destructive">
+                        Please log in to connect your Strava account
+                      </p>
+                    )}
+                    
+                    <div className="mt-4 p-3 bg-muted/50 rounded-md text-left">
+                      <p className="text-sm font-medium mb-2">Need to set up Strava integration?</p>
+                      <p className="text-xs text-muted-foreground mb-2">
+                        If you get a "502 Bad Gateway" error, the Strava API credentials need to be configured:
+                      </p>
+                      <ol className="text-xs text-muted-foreground list-decimal list-inside space-y-1">
+                        <li>Go to <a href="https://www.strava.com/settings/api" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Strava API settings</a></li>
+                        <li>Create a new API application</li>
+                        <li>Set redirect URI to your Supabase function URL</li>
+                        <li>Add STRAVA_CLIENT_ID and STRAVA_CLIENT_SECRET to Supabase environment variables</li>
+                      </ol>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-medium">Your Strava Routes ({stravaRoutes.length})</h4>
+                      <Button variant="outline" size="sm" onClick={loadStravaRoutes}>
+                        Refresh
+                      </Button>
+                    </div>
+                    
+                    {stravaRoutes.length === 0 ? (
+                      <div className="text-center py-8">
+                        <p className="text-muted-foreground mb-2">No routes found</p>
+                        <p className="text-sm text-muted-foreground">
+                          Create some routes in Strava and then refresh this list
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="max-h-96 overflow-y-auto space-y-2">
+                        {stravaRoutes.map((route) => (
+                          <Card key={route.id} className="cursor-pointer hover:bg-accent/50 transition-colors">
+                            <CardContent className="p-4">
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1 min-w-0">
+                                  <h5 className="font-medium truncate">{route.name}</h5>
+                                  {route.description && (
+                                    <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                                      {route.description}
+                                    </p>
+                                  )}
+                                  <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
+                                    <div className="flex items-center gap-1">
+                                      <MapPin className="w-3 h-3" />
+                                      {formatDistance(route.distance)}
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <TrendingUp className="w-3 h-3" />
+                                      {formatElevation(route.elevation_gain)}
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <Clock className="w-3 h-3" />
+                                      {formatTime(route.estimated_moving_time)}
+                                    </div>
+                                  </div>
+                                  <div className="flex gap-2 mt-2">
+                                    {route.starred && (
+                                      <Badge variant="secondary" className="text-xs">
+                                        ⭐ Starred
+                                      </Badge>
+                                    )}
+                                    {route.private && (
+                                      <Badge variant="outline" className="text-xs">
+                                        Private
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </div>
+                                <Button 
+                                  size="sm" 
+                                  onClick={() => handleStravaRouteImport(route)}
+                                  className="ml-4"
+                                >
+                                  Import
+                                </Button>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
           
           <TabsContent value="file" className="space-y-4">
             <Card>
